@@ -1,0 +1,34 @@
+POST http://localhost:3333/remedios
+Content-type: application/json
+
+{
+    "name": "paracetamal",
+    "dosage": "530mg",
+    "totalPills": 13,
+    "frequencyHours": 132,
+    "startDate": "2022-03-01",
+    "endDate": "2022-03-10"
+}
+
+###
+
+GET http://localhost:3333/remedios
+
+
+###
+
+PUT http://localhost:3333/remedios/1
+Content-type: application/json
+
+{
+    "name": "paracetamal",
+    "dosage": "520mg",
+    "totalPills": 20,
+    "frequencyHours": 22,
+    "startDate": "2022-02-01",
+    "endDate": "2022-02-10"
+}
+
+###
+
+DELETE http://localhost:3333/remedios/3
