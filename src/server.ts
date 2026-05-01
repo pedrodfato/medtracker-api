@@ -47,7 +47,7 @@ app.post<{ Body: RemedioBody }>('/remedios', async (request, reply) => {
 
 app.put<{ Params: { id: number }, Body: RemedioBody }>('/remedios/:id', async (request, reply) => {
     const remedioId = request.params.id
-    
+
     await database.update(Number(remedioId), request.body as any)
 
     return reply.status(204).send()
@@ -61,4 +61,4 @@ app.delete<{ Params: { id: number } }>('/remedios/:id', async (request, reply) =
     return reply.status(204).send()
 })
 
-app.listen({port: process.env.PORT ? Number(process.env.PORT) : 3333})
+app.listen({host: '0.0.0.0', port: process.env.PORT ? Number(process.env.PORT) : 3333})
