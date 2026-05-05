@@ -7,7 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
     "start": "node dist/server.js",
-    "dev": "tsx watch src/server.ts"
+    "dev": "tsx watch src/server.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push"
   },
   "keywords": [],
   "author": "",
@@ -22,7 +24,7 @@
   "devDependencies": {
     "@types/node": "^25.6.0",
     "dotenv": "^17.4.2",
-    "drizzle-kit": "^0.18.1",
+    "drizzle-kit": "^0.31.10",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3"
   }
