@@ -43,3 +43,17 @@ Content-type: application/json
     "email": "pedroomago@example.com",
     "password": "senha123"
 }
+
+###
+
+POST http://localhost:3333/login
+Content-type: application/json
+
+{
+    "email": "pedroomago@example.com",
+    "password": "senha123"
+}
+
+
+###
+POST http://localhost:3333/medications
