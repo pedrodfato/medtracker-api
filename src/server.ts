@@ -1,7 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyJwt from '@fastify/jwt';
-import { DatabasePostgres } from './database-postgres.js';
 import { userRoutes } from './routes/users.js';
 import { medicationsRoutes } from './routes/medications.js';
 
