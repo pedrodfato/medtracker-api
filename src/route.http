@@ -1,28 +1,28 @@
-POST http://localhost:3333/remedios
+POST https://medtracker-api-jtan.onrender.com/remedios
 Content-type: application/json
 
 {
-    "name": "paracetamal",
-    "dosage": "530mg",
+    "name": "Remedio",
+    "dosage": "30mg",
     "totalPills": 13,
-    "frequencyHours": 132,
+    "frequencyHours": 6,
     "startDate": "2022-03-01",
     "endDate": "2022-03-10"
 }
 
 ###
 
-GET http://localhost:3333/remedios
+GET https://medtracker-api-jtan.onrender.com/remedios
 
 
 ###
 
-PUT http://localhost:3333/remedios/1
+PUT https://medtracker-api-jtan.onrender.com/remedios/4
 Content-type: application/json
 
 {
-    "name": "paracetamal",
-    "dosage": "520mg",
+    "name": "Remedio2",
+    "dosage": "20mg",
     "totalPills": 20,
     "frequencyHours": 22,
     "startDate": "2022-02-01",
@@ -31,4 +31,4 @@ Content-type: application/json
 
 ###
 
-DELETE http://localhost:3333/remedios/3
+DELETE https://medtracker-api-jtan.onrender.com/remedios/4
