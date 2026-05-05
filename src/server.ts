@@ -1,7 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyJwt from '@fastify/jwt';
-import { userRoutes } from './routes/users.js';
 import { medicationsRoutes } from './routes/medications.js';
 
 
@@ -19,7 +18,6 @@ app.register(cors, {
 
 
 
-app.register(userRoutes);
 app.register(medicationsRoutes);
 
 app.listen({host: '0.0.0.0', port: process.env.PORT ? Number(process.env.PORT) : 3333})
