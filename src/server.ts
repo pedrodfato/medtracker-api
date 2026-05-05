@@ -1,11 +1,10 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-// import { DatabaseMemory } from './database-memory.js';
 import { DatabasePostgres } from './database-postgres.js';
+import { userRoutes } from './routes/users';
+
 
 const app = Fastify({logger: true})
-
-// const database = new DatabaseMemory();
 
 const database = new DatabasePostgres();
 
@@ -36,10 +35,6 @@ interface RemedioBody {
 
 app.post<{ Body: RemedioBody }>('/remedios', async (request, reply) => {
 
-
-    // Ao inves de usar name = name,
-	// Podemos usar name,
-
     await database.create(request.body as any)
 
     return reply.status(201).send()
@@ -60,5 +55,7 @@ app.delete<{ Params: { id: number } }>('/remedios/:id', async (request, reply) =
 
     return reply.status(204).send()
 })
+
+app.register(userRoutes);
 
 app.listen({host: '0.0.0.0', port: process.env.PORT ? Number(process.env.PORT) : 3333})
