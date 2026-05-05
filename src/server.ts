@@ -8,7 +8,7 @@ import { medicationsRoutes } from './routes/medications.js';
 const app = Fastify({logger: true})
 
 app.register(fastifyJwt, {
-  secret: process.env.JWT_SECRET || 'chave_super_secreta_medtracker_2026'
+  secret: process.env.JWT_SECRfET || 'chave_super_secreta_medtracker_2026'
 });
 
 
