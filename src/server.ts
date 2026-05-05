@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { DatabasePostgres } from './database-postgres.js';
-import { userRoutes } from './routes/users';
+import { userRoutes } from './routes/users.js';
 
 
 const app = Fastify({logger: true})

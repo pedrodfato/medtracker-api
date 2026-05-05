@@ -1,7 +1,7 @@
-import { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import bcrypt from 'bcrypt';
-import { db } from '../db'; 
-import { users } from '../schema';
+import { db } from '../db.js'; 
+import { users } from '../schema.js';
 
 export async function userRoutes(app: FastifyInstance) {
 
