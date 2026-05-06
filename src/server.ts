@@ -1,25 +1,30 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import fastifyJwt from '@fastify/jwt';
-import { userRoutes } from './routes/users.js';
-import { medicationsRoutes } from './routes/medications.js';
-
+import { medicationsRoutes } from './routes/medication-routes.js';
+import { auth } from './lib/auth.js';
+import { toNodeHandler } from "better-auth/node";
+import 'dotenv/config'
 
 const app = Fastify({logger: true})
 
-app.register(fastifyJwt, {
-  secret: process.env.JWT_SECRfET || 'chave_super_secreta_medtracker_2026'
-});
-
-
-
 app.register(cors, {
     origin: true,
+    credentials: true,
 });
 
+app.all('/api/auth/*', async (request, reply) => {
 
+    if (request.body) {
+        (request.raw as any).body = request.body;
+    }
+    
+    const handler = toNodeHandler(auth);
 
-app.register(userRoutes);
+    await handler(request.raw, reply.raw);
+
+    return reply.hijack();
+})
+
 app.register(medicationsRoutes);
 
 app.listen({host: '0.0.0.0', port: process.env.PORT ? Number(process.env.PORT) : 3333})
