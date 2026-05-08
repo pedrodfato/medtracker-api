@@ -24,4 +24,13 @@ export async function medicationsRoutes(app: FastifyInstance) {
             return reply.status(500).send({ error: 'Ocorreu um erro ao registrar o remédio.' });
         }
         });
+
+    app.get('/medications', async (request, reply) => {
+        try {
+            const myMedications = await db.select({id: medications.id, name: medications.name, dosage: medications.dosage, totalPills: medications.totalPills, frequencyHours: medications.frequencyHours, startDate: medications.startDate, userId: medications.userId}).from(medications);
+            return reply.status(200).send({data: myMedications});
+    } catch (error) {
+        return reply.status(500).send({error: 'Ocorreu um erro ao buscar as medicações.'})
     }
+    })
+}
