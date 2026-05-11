@@ -14,6 +14,6 @@ export const auth = betterAuth({
     enabled: true,
   },
   
-  baseURL: process.env.apiURL || 'http://localhost:3333',
+  baseURL: process.env.apiURL || process.env.BETTER_AUTH_URL,
   trustedOrigins: process.env.TRUSTED_ORIGINS ? process.env.TRUSTED_ORIGINS.split(',') : undefined,
 });
