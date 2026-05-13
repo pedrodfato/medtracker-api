@@ -56,4 +56,14 @@ export const medications = pgTable('medications', {
   startDate: timestamp('start_date').notNull(),
   endDate: timestamp('end_date'), 
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  category: text('category', { enum: ['pill', 'drop', 'vitamin'] }).notNull().default('pill'),
+  scheduleType: text('schedule_type', { enum: ['fixed', 'interval'] }).notNull().default('interval'),
+  scheduledTime: text('scheduled_time'),
+});
+
+export const doses_history = pgTable('doses_history', {
+	  id: serial('id').primaryKey(),
+	  medicationId: integer('medication_id').notNull().references(() => medications.id, { onDelete: "cascade" }),
+	  takenAt: timestamp('taken_at').notNull(),
+	  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
 });
