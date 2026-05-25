@@ -8,50 +8,99 @@ import { eq, desc, count } from 'drizzle-orm';
 
 export async function medicationsRoutes(app: FastifyInstance) {
     app.post('/medications', {preHandler: [verifySession]}, async (request, reply) => {
-        const  { name, dosage, frequencyHours, startDate, totalPills, category } = request.body as any;
+ 
+    const { name, dosage, startDate, totalPills, category, scheduleType, intervalHours, fixedTime, graceWindowMinutes } = request.body as any;
 
-        const session = await auth.api.getSession({
-            headers: request.headers as any,
+    const session = await auth.api.getSession({
+        headers: request.headers as any,
+    });
+
+    if (!session || !session.user) {
+        return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    const userId = session.user.id;
+
+    try {
+        await db.insert(medications).values({
+            name,
+            dosage,
+            totalPills,
+            category,
+            scheduleType,
+            intervalHours,
+            fixedTime,
+            graceWindowMinutes,
+            startDate: new Date(startDate),
+            userId: userId,
         });
-
-        if (!session || !session.user) {
-            return reply.status(401).send({ error: 'Unauthorized' });
-        }
-
-        const userId = (request as any).user.id;
-
-        try {
-            await db.insert(medications).values({
-                name,
-                dosage,
-                totalPills,
-                frequencyHours,
-                category,
-                startDate: new Date(startDate),
-                userId: userId,
-            })
-            return reply.status(201).send({ message: 'Remédio registrado com sucesso!'});
-        } catch (error) {
-            console.error('Erro ao registrar o remédio:', error);
-            return reply.status(500).send({ error: 'Ocorreu um erro ao registrar o remédio.' });
-        }
-        });
+        
+        return reply.status(201).send({ message: 'Remédio registrado com sucesso!'});
+    } catch (error) {
+        console.error('Erro ao registrar o remédio:', error);
+        return reply.status(500).send({ error: 'Ocorreu um erro ao registrar o remédio.' });
+    }
+});
 
     app.get('/medications', {preHandler: [verifySession]}, async (request, reply) => {
-        const session = await auth.api.getSession({headers: request.headers as any});
+const session = await auth.api.getSession({ headers: request.headers as any });
+    if (!session || !session.user) return reply.status(401).send({ error: 'Unauthorized' });
 
-        if (!session || !session.user) {
-            return reply.status(401).send({ error: 'Unauthorized' });
-        }
+    const userId = session.user.id;
 
+    try {
+        
+        const userMeds = await db.select().from(medications).where(eq(medications.userId, userId));
 
-        try {
-            const myMedications = await db.select({id: medications.id, name: medications.name, dosage: medications.dosage, totalPills: medications.totalPills, frequencyHours: medications.frequencyHours, startDate: medications.startDate}).from(medications).where(eq(medications.userId, session.user.id));
-            return reply.status(200).send({data: myMedications});
+     
+        const enrichedMeds = await Promise.all(userMeds.map(async (med) => {
+            
+           
+            const [lastDose] = await db.select()
+                .from(doses_history)
+                .where(eq(doses_history.medicationId, med.id))
+                .orderBy(desc(doses_history.takenAt))
+                .limit(1);
+
+            let nextDoseAt = null;
+
+            if (med.scheduleType === 'fixed' && med.fixedTime) {
+                const timeParts = med.fixedTime.split(':');
+                const hours = Number(timeParts[0]);
+                const minutes = Number(timeParts[1] || '0');
+                const now = new Date();
+                const next = new Date(now);
+                next.setHours(hours, minutes, 0, 0);
+
+                if (now.getTime() > next.getTime()) {
+                    next.setDate(next.getDate() + 1);
+                }
+                nextDoseAt = next.toISOString();
+
+            } else if (med.scheduleType === 'interval' && med.intervalHours) {
+         
+                if (lastDose) {
+                    
+                    const next = new Date(lastDose.takenAt.getTime() + (med.intervalHours * 60 * 60 * 1000));
+                    nextDoseAt = next.toISOString();
+                } else {
+                    nextDoseAt = med.startDate.toISOString();
+                }
+            }
+
+            return {
+                ...med,
+                nextDoseAt 
+            };
+        }));
+
+        return reply.status(200).send({ data: enrichedMeds });
+
     } catch (error) {
-        return reply.status(500).send({error: 'Ocorreu um erro ao buscar as medicações.'})
+        console.error('Erro ao buscar remédios:', error);
+        return reply.status(500).send({ error: 'Erro interno ao buscar dados' });
     }
-    })
+});
 
     app.post('/medication/:id/take', {preHandler: [verifySession]}, async (request, reply) =>{
         const {id} = request.params as {id: string};
@@ -77,36 +126,5 @@ export async function medicationsRoutes(app: FastifyInstance) {
         return reply.status(200).send({ message: 'Dose registrada com sucesso!' });
     })
 
-    app.get('/api/medication/', async (request, reply) => {
-        const session = await auth.api.getSession({headers: request.headers as any});
-
-        if (!session || !session.user) {
-            return reply.status(401).send({ error: 'Unauthorized' });
-        }
-
-        const userMedications = await db.select().from(medications).where(eq(medications.userId, session.user.id));
-
-        const enrichedMedications = await Promise.all(userMedications.map(async (med) => {
-            const [dosesResult] = await db.select({ value: count() }).from(doses_history).where(eq(doses_history.medicationId, med.id));
-
-            const [lastDose] = await db.select().from(doses_history).where(eq(doses_history.medicationId, med.id)).orderBy(desc(doses_history.takenAt)).limit(1);
-
-            let nextDoseAt = null;
-
-            if (lastDose) {
-            nextDoseAt = new Date(lastDose.takenAt.getTime() + (med.frequencyHours * 60 * 60 * 1000));
-        } else {
-            nextDoseAt = med.startDate;
-        }
-
-        return {
-            ...med,
-            dosesTaken: dosesResult ? dosesResult.value : 0,
-            nextDoseAt: nextDoseAt.toISOString(),
-            streak: 0 
-        };
-        }));
-
-        return { data: enrichedMedications };
-    });
+    
 }

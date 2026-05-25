@@ -1,5 +1,6 @@
-import { text, pgTable, serial, integer, timestamp, boolean } from 'drizzle-orm/pg-core';
+import { text, pgTable, serial, integer, timestamp, boolean, pgEnum } from 'drizzle-orm/pg-core';
 
+export const scheduleTypeEnum = pgEnum('schedule_type', ['fixed', 'interval']);
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -52,13 +53,15 @@ export const medications = pgTable('medications', {
   name: text('name').notNull(),
   dosage: text('dosage').notNull(),
   totalPills: integer('total_pills').notNull(),
-  frequencyHours: integer('frequency_hours').notNull(),
   startDate: timestamp('start_date').notNull(),
   endDate: timestamp('end_date'), 
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   category: text('category', { enum: ['pill', 'drop', 'vitamin'] }).notNull().default('pill'),
   scheduleType: text('schedule_type', { enum: ['fixed', 'interval'] }).notNull().default('interval'),
-  scheduledTime: text('scheduled_time'),
+  intervalHours: integer('interval_hours'),
+  fixedTime: text('fixed_time'), 
+  graceWindowMinutes: integer('grace_window_minutes').default(30),
+  createdAt: timestamp('created_at').defaultNow(),
 });
 
 export const doses_history = pgTable('doses_history', {
