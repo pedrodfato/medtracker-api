@@ -1,6 +1,6 @@
 import { text, pgTable, serial, integer, timestamp, boolean, pgEnum } from 'drizzle-orm/pg-core';
 
-export const scheduleTypeEnum = pgEnum('schedule_type', ['fixed', 'interval']);
+export const scheduleTypeEnum = pgEnum('schedule_type', ['fixed', 'interval', 'weekly']);
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -59,7 +59,8 @@ export const medications = pgTable('medications', {
   category: text('category', { enum: ['pill', 'drop', 'vitamin'] }).notNull().default('pill'),
   scheduleType: text('schedule_type', { enum: ['fixed', 'interval'] }).notNull().default('interval'),
   intervalHours: integer('interval_hours'),
-  fixedTime: text('fixed_time'), 
+  fixedTime: text('fixed_time'),
+  daysOfWeek: integer('days_of_week').array(),
   graceWindowMinutes: integer('grace_window_minutes').default(30),
   createdAt: timestamp('created_at').defaultNow(),
 });
