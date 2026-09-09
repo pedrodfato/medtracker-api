@@ -140,6 +140,7 @@ const session = await auth.api.getSession({ headers: request.headers as any });
                     scheduleType: m.scheduleType,
                     intervalHours: m.intervalHours,
                     daysOfWeek: m.daysOfWeek,
+                    startDate: m.startDate,
                 })),
                 userDoses.map((d) => ({ medicationId: d.medicationId, takenAt: d.takenAt })),
                 new Date()

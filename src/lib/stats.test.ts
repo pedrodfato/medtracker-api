@@ -34,7 +34,7 @@ test('currentStreak is 0 when no dose was taken today or yesterday', () => {
 test('weeklyAdherenceRate and missedDoses for a fixed-schedule medication with one miss', () => {
   // 2026-09-09 is Wednesday. Window is the 7 days ending today: 2026-09-03..2026-09-09 (7 expected doses for a daily fixed schedule).
   const now = new Date('2026-09-09T20:00:00');
-  const medications = [{ id: 1, scheduleType: 'fixed' as const, intervalHours: null, daysOfWeek: null }];
+  const medications = [{ id: 1, scheduleType: 'fixed' as const, intervalHours: null, daysOfWeek: null, startDate: new Date('2026-08-01T00:00:00') }];
   const doses = [
     { medicationId: 1, takenAt: new Date('2026-09-03T08:00:00') },
     { medicationId: 1, takenAt: new Date('2026-09-04T08:00:00') },
@@ -54,4 +54,13 @@ test('weekly adherence with zero expected doses reports 100% and 0 missed', () =
   const stats = computeStats([], [], now);
   assert.equal(stats.weeklyAdherenceRate, 100);
   assert.equal(stats.missedDoses, 0);
+});
+
+test('a medication added today is not charged for doses missed before it existed', () => {
+  const now = new Date('2026-09-09T20:00:00');
+  const medications = [{ id: 1, scheduleType: 'fixed' as const, intervalHours: null, daysOfWeek: null, startDate: new Date('2026-09-09T09:00:00') }];
+  const doses = [{ medicationId: 1, takenAt: new Date('2026-09-09T10:00:00') }];
+  const stats = computeStats(medications, doses, now);
+  assert.equal(stats.missedDoses, 0);
+  assert.equal(stats.weeklyAdherenceRate, 100);
 });
