@@ -6,6 +6,7 @@ import { auth } from '../lib/auth.js';
 import { get } from 'node:http';
 import { eq, and, desc, count } from 'drizzle-orm';
 import { computeNextDoseAt } from '../lib/nextDose.js';
+import { computeStats } from '../lib/stats.js';
 
 export async function medicationsRoutes(app: FastifyInstance) {
     app.post('/medications', {preHandler: [verifySession]}, async (request, reply) => {
@@ -123,5 +124,33 @@ const session = await auth.api.getSession({ headers: request.headers as any });
         return reply.status(200).send({ message: 'Dose registrada com sucesso!' });
     })
 
-    
+    app.get('/stats', {preHandler: [verifySession]}, async (request, reply) => {
+        const session = await auth.api.getSession({ headers: request.headers as any });
+        if (!session || !session.user) return reply.status(401).send({ error: 'Unauthorized' });
+
+        const userId = session.user.id;
+
+        try {
+            const userMeds = await db.select().from(medications).where(eq(medications.userId, userId));
+            const userDoses = await db.select().from(doses_history).where(eq(doses_history.userId, userId));
+
+            const stats = computeStats(
+                userMeds.map((m) => ({
+                    id: m.id,
+                    scheduleType: m.scheduleType,
+                    intervalHours: m.intervalHours,
+                    daysOfWeek: m.daysOfWeek,
+                })),
+                userDoses.map((d) => ({ medicationId: d.medicationId, takenAt: d.takenAt })),
+                new Date()
+            );
+
+            return reply.status(200).send({ data: stats });
+        } catch (error) {
+            console.error('Erro ao calcular estatisticas:', error);
+            return reply.status(500).send({ error: 'Erro interno ao calcular estatisticas' });
+        }
+    })
+
+
 }
