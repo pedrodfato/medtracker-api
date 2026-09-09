@@ -7,16 +7,21 @@ import 'dotenv/config'
 
 const app = Fastify({logger: true})
 
+const trustedOrigins = [
+    ...(process.env.TRUSTED_ORIGINS ? process.env.TRUSTED_ORIGINS.split(',') : []),
+    "http://localhost:5173",
+];
+
 app.register(cors, {
-    origin: [process.env.TRUSTED_ORIGINS!, "http://localhost:5173"], 
+    origin: trustedOrigins,
     credentials: true,
 });
 
 app.all('/api/auth/*', async (request, reply) => {
-    
+
     const origin = request.headers.origin;
 
-    if (origin) {
+    if (origin && trustedOrigins.includes(origin)) {
         reply.raw.setHeader("Access-Control-Allow-Credentials", "true");
         reply.raw.setHeader("Access-Control-Allow-Origin", origin);
     }

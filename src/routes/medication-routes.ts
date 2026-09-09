@@ -4,7 +4,7 @@ import { doses_history, medications } from '../schema.js';
 import { verifySession } from '../middlewares/auth-middleware.js';
 import { auth } from '../lib/auth.js';
 import { get } from 'node:http';
-import { eq, desc, count } from 'drizzle-orm';
+import { eq, and, desc, count } from 'drizzle-orm';
 
 export async function medicationsRoutes(app: FastifyInstance) {
     app.post('/medications', {preHandler: [verifySession]}, async (request, reply) => {
@@ -117,6 +117,14 @@ const session = await auth.api.getSession({ headers: request.headers as any });
         }
 
         const userId = session.user.id;
+
+        const [medication] = await db.select()
+            .from(medications)
+            .where(and(eq(medications.id, medicationId), eq(medications.userId, userId)));
+
+        if (!medication) {
+            return reply.status(404).send({ error: 'Medicamento não encontrado' });
+        }
 
         await db.insert(doses_history).values({
             userId,
