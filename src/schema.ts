@@ -57,7 +57,7 @@ export const medications = pgTable('medications', {
   endDate: timestamp('end_date'), 
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   category: text('category', { enum: ['pill', 'drop', 'vitamin'] }).notNull().default('pill'),
-  scheduleType: text('schedule_type', { enum: ['fixed', 'interval'] }).notNull().default('interval'),
+  scheduleType: text('schedule_type', { enum: ['fixed', 'interval', 'weekly'] }).notNull().default('interval'),
   intervalHours: integer('interval_hours'),
   fixedTime: text('fixed_time'),
   daysOfWeek: integer('days_of_week').array(),
