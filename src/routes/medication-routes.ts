@@ -5,11 +5,12 @@ import { verifySession } from '../middlewares/auth-middleware.js';
 import { auth } from '../lib/auth.js';
 import { get } from 'node:http';
 import { eq, and, desc, count } from 'drizzle-orm';
+import { computeNextDoseAt } from '../lib/nextDose.js';
 
 export async function medicationsRoutes(app: FastifyInstance) {
     app.post('/medications', {preHandler: [verifySession]}, async (request, reply) => {
  
-    const { name, dosage, startDate, totalPills, category, scheduleType, intervalHours, fixedTime, graceWindowMinutes } = request.body as any;
+    const { name, dosage, startDate, totalPills, category, scheduleType, intervalHours, fixedTime, graceWindowMinutes, daysOfWeek } = request.body as any;
 
     const session = await auth.api.getSession({
         headers: request.headers as any,
@@ -30,6 +31,7 @@ export async function medicationsRoutes(app: FastifyInstance) {
             scheduleType,
             intervalHours,
             fixedTime,
+            daysOfWeek,
             graceWindowMinutes,
             startDate: new Date(startDate),
             userId: userId,
@@ -62,31 +64,18 @@ const session = await auth.api.getSession({ headers: request.headers as any });
                 .orderBy(desc(doses_history.takenAt))
                 .limit(1);
 
-            let nextDoseAt = null;
-
-            if (med.scheduleType === 'fixed' && med.fixedTime) {
-                const timeParts = med.fixedTime.split(':');
-                const hours = Number(timeParts[0]);
-                const minutes = Number(timeParts[1] || '0');
-                const now = new Date();
-                const next = new Date(now);
-                next.setHours(hours, minutes, 0, 0);
-
-                if (now.getTime() > next.getTime()) {
-                    next.setDate(next.getDate() + 1);
-                }
-                nextDoseAt = next.toISOString();
-
-            } else if (med.scheduleType === 'interval' && med.intervalHours) {
-         
-                if (lastDose) {
-                    
-                    const next = new Date(lastDose.takenAt.getTime() + (med.intervalHours * 60 * 60 * 1000));
-                    nextDoseAt = next.toISOString();
-                } else {
-                    nextDoseAt = med.startDate.toISOString();
-                }
-            }
+            const nextDoseDate = computeNextDoseAt(
+                {
+                    scheduleType: med.scheduleType,
+                    fixedTime: med.fixedTime,
+                    intervalHours: med.intervalHours,
+                    daysOfWeek: med.daysOfWeek,
+                    startDate: med.startDate,
+                },
+                lastDose ? lastDose.takenAt : null,
+                new Date()
+            );
+            const nextDoseAt = nextDoseDate ? nextDoseDate.toISOString() : null;
 
             return {
                 ...med,

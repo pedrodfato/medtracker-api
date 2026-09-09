@@ -7,7 +7,9 @@ export type NextDoseInput = {
 };
 
 function atTime(base: Date, hhmm: string): Date {
-  const [hours, minutes] = hhmm.split(':').map(Number);
+  const parts = hhmm.split(':').map(Number);
+  const hours = parts[0] ?? 0;
+  const minutes = parts[1] ?? 0;
   const result = new Date(base);
   result.setHours(hours, minutes, 0, 0);
   return result;
@@ -46,7 +48,7 @@ export function computeNextDoseAt(
     }
 
     const laterThisWeek = sortedDays.find((day) => day > todayDow);
-    const targetDow = laterThisWeek !== undefined ? laterThisWeek : sortedDays[0];
+    const targetDow = laterThisWeek !== undefined ? laterThisWeek : sortedDays[0]!;
     const daysUntil = laterThisWeek !== undefined
       ? targetDow - todayDow
       : 7 - todayDow + targetDow;
