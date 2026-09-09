@@ -52,7 +52,7 @@ export const medications = pgTable('medications', {
   id: serial('id').primaryKey(),
   name: text('name').notNull(),
   dosage: text('dosage').notNull(),
-  totalPills: integer('total_pills').notNull(),
+  totalPills: integer('total_pills'),
   startDate: timestamp('start_date').notNull(),
   endDate: timestamp('end_date'), 
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
