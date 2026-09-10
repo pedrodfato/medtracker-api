@@ -5,12 +5,13 @@ import cors from '@fastify/cors';
 import { medicationsRoutes } from './routes/medication-routes.js';
 import { auth } from './lib/auth.js';
 import { toNodeHandler } from "better-auth/node";
+import { parseTrustedOrigins } from './lib/trustedOrigins.js';
 import 'dotenv/config'
 
 const app = Fastify({logger: true})
 
 const trustedOrigins = [
-    ...(process.env.TRUSTED_ORIGINS ? process.env.TRUSTED_ORIGINS.split(',') : []),
+    ...parseTrustedOrigins(process.env.TRUSTED_ORIGINS),
     "http://localhost:5173",
 ];
 

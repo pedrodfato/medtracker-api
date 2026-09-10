@@ -2,20 +2,21 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "../db.js";
 import * as schema from "../schema.js";
+import { parseTrustedOrigins } from "./trustedOrigins.js";
 import 'dotenv/config'
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
-    provider: "pg", 
+    provider: "pg",
     schema: schema,
   }),
-  
+
   emailAndPassword: {
     enabled: true,
   },
-  
+
   baseURL: process.env.apiURL || process.env.BETTER_AUTH_URL,
-  trustedOrigins: process.env.TRUSTED_ORIGINS ? process.env.TRUSTED_ORIGINS.split(',') : undefined,
+  trustedOrigins: parseTrustedOrigins(process.env.TRUSTED_ORIGINS),
   advanced: {
     defaultCookieAttributes: {
       sameSite: "none",
