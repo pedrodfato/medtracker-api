@@ -64,3 +64,31 @@ test('a medication added today is not charged for doses missed before it existed
   assert.equal(stats.missedDoses, 0);
   assert.equal(stats.weeklyAdherenceRate, 100);
 });
+
+test('missedByMedication breaks down missed doses per medication, sorted by count desc, zero-miss meds omitted', () => {
+  const now = new Date('2026-09-09T20:00:00');
+  const medications = [
+    { id: 1, scheduleType: 'fixed' as const, intervalHours: null, daysOfWeek: null, startDate: new Date('2026-08-01T00:00:00') }, // 7 expected, 0 taken -> 7 missed
+    { id: 2, scheduleType: 'fixed' as const, intervalHours: null, daysOfWeek: null, startDate: new Date('2026-08-01T00:00:00') }, // 7 expected, 5 taken -> 2 missed
+    { id: 3, scheduleType: 'fixed' as const, intervalHours: null, daysOfWeek: null, startDate: new Date('2026-08-01T00:00:00') }, // 7 expected, 7 taken -> 0 missed, omitted
+  ];
+  const doses = [
+    { medicationId: 2, takenAt: new Date('2026-09-03T08:00:00') },
+    { medicationId: 2, takenAt: new Date('2026-09-04T08:00:00') },
+    { medicationId: 2, takenAt: new Date('2026-09-05T08:00:00') },
+    { medicationId: 2, takenAt: new Date('2026-09-06T08:00:00') },
+    { medicationId: 2, takenAt: new Date('2026-09-07T08:00:00') },
+    { medicationId: 3, takenAt: new Date('2026-09-03T08:00:00') },
+    { medicationId: 3, takenAt: new Date('2026-09-04T08:00:00') },
+    { medicationId: 3, takenAt: new Date('2026-09-05T08:00:00') },
+    { medicationId: 3, takenAt: new Date('2026-09-06T08:00:00') },
+    { medicationId: 3, takenAt: new Date('2026-09-07T08:00:00') },
+    { medicationId: 3, takenAt: new Date('2026-09-08T08:00:00') },
+    { medicationId: 3, takenAt: new Date('2026-09-09T08:00:00') },
+  ];
+  const stats = computeStats(medications, doses, now);
+  assert.deepEqual(stats.missedByMedication, [
+    { medicationId: 1, missedCount: 7 },
+    { medicationId: 2, missedCount: 2 },
+  ]);
+});

@@ -11,6 +11,7 @@ export type Stats = {
   dosesTaken: number;
   weeklyAdherenceRate: number;
   missedDoses: number;
+  missedByMedication: { medicationId: number; missedCount: number }[];
 };
 
 function dateKey(d: Date): string {
@@ -77,12 +78,18 @@ export function computeStats(medications: StatsMedication[], doses: StatsDose[],
 
   let totalExpected = 0;
   let totalMissed = 0;
+  const missedByMedication: { medicationId: number; missedCount: number }[] = [];
   for (const medication of medications) {
     const expected = expectedDosesInWindow(medication, windowStart, now);
     const taken = dosesInWindow.filter((d) => d.medicationId === medication.id).length;
+    const missed = Math.max(expected - taken, 0);
     totalExpected += expected;
-    totalMissed += Math.max(expected - taken, 0);
+    totalMissed += missed;
+    if (missed > 0) {
+      missedByMedication.push({ medicationId: medication.id, missedCount: missed });
+    }
   }
+  missedByMedication.sort((a, b) => b.missedCount - a.missedCount);
 
   const weeklyAdherenceRate = totalExpected === 0
     ? 100
@@ -93,5 +100,6 @@ export function computeStats(medications: StatsMedication[], doses: StatsDose[],
     dosesTaken: doses.length,
     weeklyAdherenceRate,
     missedDoses: totalMissed,
+    missedByMedication,
   };
 }
