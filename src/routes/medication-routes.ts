@@ -7,6 +7,7 @@ import { get } from 'node:http';
 import { eq, and, desc, count } from 'drizzle-orm';
 import { computeNextDoseAt, computeNextAllowedDoseAt } from '../lib/nextDose.js';
 import { computeStats } from '../lib/stats.js';
+import { offsetDiffMinutes, toProcessZone, fromProcessZone, DEFAULT_TIMEZONE } from '../lib/timezone.js';
 
 export async function medicationsRoutes(app: FastifyInstance) {
     app.post('/medications', {preHandler: [verifySession]}, async (request, reply) => {
@@ -50,15 +51,16 @@ const session = await auth.api.getSession({ headers: request.headers as any });
     if (!session || !session.user) return reply.status(401).send({ error: 'Unauthorized' });
 
     const userId = session.user.id;
+    const diff = offsetDiffMinutes((session.user as any).timezone ?? DEFAULT_TIMEZONE);
 
     try {
-        
+
         const userMeds = await db.select().from(medications).where(eq(medications.userId, userId));
 
-     
+
         const enrichedMeds = await Promise.all(userMeds.map(async (med) => {
-            
-           
+
+
             const [lastDose] = await db.select()
                 .from(doses_history)
                 .where(eq(doses_history.medicationId, med.id))
@@ -71,12 +73,12 @@ const session = await auth.api.getSession({ headers: request.headers as any });
                     fixedTime: med.fixedTime,
                     intervalHours: med.intervalHours,
                     daysOfWeek: med.daysOfWeek,
-                    startDate: med.startDate,
+                    startDate: toProcessZone(med.startDate, diff),
                 },
-                lastDose ? lastDose.takenAt : null,
-                new Date()
+                lastDose ? toProcessZone(lastDose.takenAt, diff) : null,
+                toProcessZone(new Date(), diff)
             );
-            const nextDoseAt = nextDoseDate ? nextDoseDate.toISOString() : null;
+            const nextDoseAt = nextDoseDate ? fromProcessZone(nextDoseDate, diff).toISOString() : null;
 
             return {
                 ...med,
@@ -124,6 +126,7 @@ const session = await auth.api.getSession({ headers: request.headers as any });
             .limit(1);
 
         const now = new Date();
+        const diff = offsetDiffMinutes((session.user as any).timezone ?? DEFAULT_TIMEZONE);
 
         if (lastDose) {
             const nextAllowedDate = computeNextAllowedDoseAt(
@@ -132,15 +135,15 @@ const session = await auth.api.getSession({ headers: request.headers as any });
                     fixedTime: medication.fixedTime,
                     intervalHours: medication.intervalHours,
                     daysOfWeek: medication.daysOfWeek,
-                    startDate: medication.startDate,
+                    startDate: toProcessZone(medication.startDate, diff),
                 },
-                lastDose.takenAt
+                toProcessZone(lastDose.takenAt, diff)
             );
 
-            if (nextAllowedDate && nextAllowedDate.getTime() > now.getTime()) {
+            if (nextAllowedDate && fromProcessZone(nextAllowedDate, diff).getTime() > now.getTime()) {
                 return reply.status(409).send({
                     error: 'Dose ainda não disponível',
-                    nextDoseAt: nextAllowedDate.toISOString(),
+                    nextDoseAt: fromProcessZone(nextAllowedDate, diff).toISOString(),
                 });
             }
         }
@@ -231,20 +234,21 @@ const session = await auth.api.getSession({ headers: request.headers as any });
         if (!session || !session.user) return reply.status(401).send({ error: 'Unauthorized' });
 
         const userId = session.user.id;
+        const diff = offsetDiffMinutes((session.user as any).timezone ?? DEFAULT_TIMEZONE);
 
         try {
             const userMeds = await db.select().from(medications).where(eq(medications.userId, userId));
             const userDoses = await db.select().from(doses_history).where(eq(doses_history.userId, userId));
-            const now = new Date();
+            const now = toProcessZone(new Date(), diff);
 
             const toStatsMedication = (m: typeof userMeds[number]) => ({
                 id: m.id,
                 scheduleType: m.scheduleType,
                 intervalHours: m.intervalHours,
                 daysOfWeek: m.daysOfWeek,
-                startDate: m.startDate,
+                startDate: toProcessZone(m.startDate, diff),
             });
-            const toStatsDose = (d: typeof userDoses[number]) => ({ medicationId: d.medicationId, takenAt: d.takenAt });
+            const toStatsDose = (d: typeof userDoses[number]) => ({ medicationId: d.medicationId, takenAt: toProcessZone(d.takenAt, diff) });
 
             const overall = computeStats(userMeds.map(toStatsMedication), userDoses.map(toStatsDose), now);
 
