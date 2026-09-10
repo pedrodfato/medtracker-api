@@ -180,5 +180,33 @@ const session = await auth.api.getSession({ headers: request.headers as any });
         }
     })
 
+    app.get('/doses', {preHandler: [verifySession]}, async (request, reply) => {
+        const session = await auth.api.getSession({ headers: request.headers as any });
+        if (!session || !session.user) return reply.status(401).send({ error: 'Unauthorized' });
+
+        const userId = session.user.id;
+
+        try {
+            const rows = await db.select({
+                id: doses_history.id,
+                medicationId: doses_history.medicationId,
+                takenAt: doses_history.takenAt,
+                medicationName: medications.name,
+                dosage: medications.dosage,
+                category: medications.category,
+            })
+                .from(doses_history)
+                .innerJoin(medications, eq(doses_history.medicationId, medications.id))
+                .where(eq(doses_history.userId, userId))
+                .orderBy(desc(doses_history.takenAt));
+
+            return reply.status(200).send({
+                data: rows.map((r) => ({ ...r, takenAt: r.takenAt.toISOString() })),
+            });
+        } catch (error) {
+            console.error('Erro ao buscar historico de doses:', error);
+            return reply.status(500).send({ error: 'Erro interno ao buscar historico' });
+        }
+    })
 
 }
