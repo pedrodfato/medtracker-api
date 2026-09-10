@@ -235,20 +235,26 @@ const session = await auth.api.getSession({ headers: request.headers as any });
         try {
             const userMeds = await db.select().from(medications).where(eq(medications.userId, userId));
             const userDoses = await db.select().from(doses_history).where(eq(doses_history.userId, userId));
+            const now = new Date();
 
-            const stats = computeStats(
-                userMeds.map((m) => ({
-                    id: m.id,
-                    scheduleType: m.scheduleType,
-                    intervalHours: m.intervalHours,
-                    daysOfWeek: m.daysOfWeek,
-                    startDate: m.startDate,
-                })),
-                userDoses.map((d) => ({ medicationId: d.medicationId, takenAt: d.takenAt })),
-                new Date()
-            );
+            const toStatsMedication = (m: typeof userMeds[number]) => ({
+                id: m.id,
+                scheduleType: m.scheduleType,
+                intervalHours: m.intervalHours,
+                daysOfWeek: m.daysOfWeek,
+                startDate: m.startDate,
+            });
+            const toStatsDose = (d: typeof userDoses[number]) => ({ medicationId: d.medicationId, takenAt: d.takenAt });
 
-            return reply.status(200).send({ data: stats });
+            const overall = computeStats(userMeds.map(toStatsMedication), userDoses.map(toStatsDose), now);
+
+            const perMedication: Record<number, ReturnType<typeof computeStats>> = {};
+            for (const med of userMeds) {
+                const medDoses = userDoses.filter((d) => d.medicationId === med.id);
+                perMedication[med.id] = computeStats([toStatsMedication(med)], medDoses.map(toStatsDose), now);
+            }
+
+            return reply.status(200).send({ data: { overall, perMedication } });
         } catch (error) {
             console.error('Erro ao calcular estatisticas:', error);
             return reply.status(500).send({ error: 'Erro interno ao calcular estatisticas' });
