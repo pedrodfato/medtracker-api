@@ -22,4 +22,14 @@ export const auth = betterAuth({
       secure: true,
     },
   },
+  user: {
+    additionalFields: {
+      timezone: {
+        type: "string",
+        required: false,
+        defaultValue: "America/Sao_Paulo",
+        input: true,
+      },
+    },
+  },
 });
