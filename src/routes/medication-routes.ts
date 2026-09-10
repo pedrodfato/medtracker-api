@@ -5,7 +5,7 @@ import { verifySession } from '../middlewares/auth-middleware.js';
 import { auth } from '../lib/auth.js';
 import { get } from 'node:http';
 import { eq, and, desc, count } from 'drizzle-orm';
-import { computeNextDoseAt } from '../lib/nextDose.js';
+import { computeNextDoseAt, computeNextAllowedDoseAt } from '../lib/nextDose.js';
 import { computeStats } from '../lib/stats.js';
 
 export async function medicationsRoutes(app: FastifyInstance) {
@@ -124,23 +124,25 @@ const session = await auth.api.getSession({ headers: request.headers as any });
             .limit(1);
 
         const now = new Date();
-        const nextDoseDate = computeNextDoseAt(
-            {
-                scheduleType: medication.scheduleType,
-                fixedTime: medication.fixedTime,
-                intervalHours: medication.intervalHours,
-                daysOfWeek: medication.daysOfWeek,
-                startDate: medication.startDate,
-            },
-            lastDose ? lastDose.takenAt : null,
-            now
-        );
 
-        if (lastDose && nextDoseDate && nextDoseDate.getTime() > now.getTime()) {
-            return reply.status(409).send({
-                error: 'Dose ainda não disponível',
-                nextDoseAt: nextDoseDate.toISOString(),
-            });
+        if (lastDose) {
+            const nextAllowedDate = computeNextAllowedDoseAt(
+                {
+                    scheduleType: medication.scheduleType,
+                    fixedTime: medication.fixedTime,
+                    intervalHours: medication.intervalHours,
+                    daysOfWeek: medication.daysOfWeek,
+                    startDate: medication.startDate,
+                },
+                lastDose.takenAt
+            );
+
+            if (nextAllowedDate && nextAllowedDate.getTime() > now.getTime()) {
+                return reply.status(409).send({
+                    error: 'Dose ainda não disponível',
+                    nextDoseAt: nextAllowedDate.toISOString(),
+                });
+            }
         }
 
         await db.insert(doses_history).values({

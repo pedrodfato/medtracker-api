@@ -60,3 +60,25 @@ export function computeNextDoseAt(
 
   return null;
 }
+
+/**
+ * When would the dose AFTER `lastDoseTakenAt` become due? Unlike computeNextDoseAt
+ * (which projects from "now" and therefore always returns a future time for
+ * fixed/weekly schedules), this projects from the last dose itself, so it can
+ * correctly answer "has a new slot opened up since the last dose?" even when
+ * that slot is already in the past relative to `now`.
+ */
+export function computeNextAllowedDoseAt(
+  medication: NextDoseInput,
+  lastDoseTakenAt: Date
+): Date | null {
+  if (medication.scheduleType === 'interval') {
+    if (!medication.intervalHours) return null;
+    return new Date(lastDoseTakenAt.getTime() + medication.intervalHours * 60 * 60 * 1000);
+  }
+
+  // fixed/weekly ignore the lastDoseTakenAt parameter and derive purely from
+  // the reference time, so feeding the last dose's timestamp as that
+  // reference correctly finds the next scheduled slot after it.
+  return computeNextDoseAt(medication, null, lastDoseTakenAt);
+}
