@@ -15,6 +15,7 @@ const trustedOrigins = [
 app.register(cors, {
     origin: trustedOrigins,
     credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE'],
 });
 
 app.all('/api/auth/*', async (request, reply) => {
