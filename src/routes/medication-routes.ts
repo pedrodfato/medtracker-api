@@ -116,10 +116,36 @@ const session = await auth.api.getSession({ headers: request.headers as any });
             return reply.status(404).send({ error: 'Medicamento não encontrado' });
         }
 
+        const [lastDose] = await db.select()
+            .from(doses_history)
+            .where(eq(doses_history.medicationId, medicationId))
+            .orderBy(desc(doses_history.takenAt))
+            .limit(1);
+
+        const now = new Date();
+        const nextDoseDate = computeNextDoseAt(
+            {
+                scheduleType: medication.scheduleType,
+                fixedTime: medication.fixedTime,
+                intervalHours: medication.intervalHours,
+                daysOfWeek: medication.daysOfWeek,
+                startDate: medication.startDate,
+            },
+            lastDose ? lastDose.takenAt : null,
+            now
+        );
+
+        if (lastDose && nextDoseDate && nextDoseDate.getTime() > now.getTime()) {
+            return reply.status(409).send({
+                error: 'Dose ainda não disponível',
+                nextDoseAt: nextDoseDate.toISOString(),
+            });
+        }
+
         await db.insert(doses_history).values({
             userId,
             medicationId,
-            takenAt: new Date(),
+            takenAt: now,
         })
         return reply.status(200).send({ message: 'Dose registrada com sucesso!' });
     })
