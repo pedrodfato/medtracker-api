@@ -1,3 +1,5 @@
+process.env.TZ = 'America/Sao_Paulo';
+
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { medicationsRoutes } from './routes/medication-routes.js';
