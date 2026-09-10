@@ -191,6 +191,41 @@ const session = await auth.api.getSession({ headers: request.headers as any });
         }
     })
 
+    app.delete('/medications/:id', {preHandler: [verifySession]}, async (request, reply) => {
+        const {id} = request.params as {id: string};
+        const medicationId = Number(id);
+
+        if (Number.isNaN(medicationId)) {
+            return reply.status(400).send({ error: 'Invalid medication id' });
+        }
+
+        const session = await auth.api.getSession({headers: request.headers as any});
+
+        if (!session || !session.user) {
+            return reply.status(401).send({ error: 'Unauthorized' });
+        }
+
+        const userId = session.user.id;
+
+        const [medication] = await db.select()
+            .from(medications)
+            .where(and(eq(medications.id, medicationId), eq(medications.userId, userId)));
+
+        if (!medication) {
+            return reply.status(404).send({ error: 'Medicamento não encontrado' });
+        }
+
+        try {
+            await db.delete(medications)
+                .where(and(eq(medications.id, medicationId), eq(medications.userId, userId)));
+
+            return reply.status(200).send({ message: 'Remédio excluído com sucesso!' });
+        } catch (error) {
+            console.error('Erro ao excluir o remédio:', error);
+            return reply.status(500).send({ error: 'Ocorreu um erro ao excluir o remédio.' });
+        }
+    })
+
     app.get('/stats', {preHandler: [verifySession]}, async (request, reply) => {
         const session = await auth.api.getSession({ headers: request.headers as any });
         if (!session || !session.user) return reply.status(401).send({ error: 'Unauthorized' });
