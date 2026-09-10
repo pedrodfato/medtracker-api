@@ -80,7 +80,8 @@ const session = await auth.api.getSession({ headers: request.headers as any });
 
             return {
                 ...med,
-                nextDoseAt 
+                nextDoseAt,
+                lastTakenAt: lastDose ? lastDose.takenAt.toISOString() : null,
             };
         }));
 
