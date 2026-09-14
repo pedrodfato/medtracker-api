@@ -82,3 +82,20 @@ export function computeNextAllowedDoseAt(
   // reference correctly finds the next scheduled slot after it.
   return computeNextDoseAt(medication, null, lastDoseTakenAt);
 }
+
+/**
+ * Is a dose currently due (possibly overdue)? Used for display and for
+ * gating the "mark as taken" action. Always anchors on the last known
+ * reference point (the last dose taken, or the medication's start date if
+ * none yet) instead of "now", so an overdue dose stays visible as due today
+ * rather than silently rolling forward to the next occurrence.
+ */
+export function computeNextDueAt(
+  medication: NextDoseInput,
+  lastDoseTakenAt: Date | null
+): Date | null {
+  if (lastDoseTakenAt) {
+    return computeNextAllowedDoseAt(medication, lastDoseTakenAt);
+  }
+  return computeNextDoseAt(medication, null, medication.startDate);
+}

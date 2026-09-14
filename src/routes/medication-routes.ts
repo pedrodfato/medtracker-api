@@ -5,7 +5,7 @@ import { verifySession } from '../middlewares/auth-middleware.js';
 import { auth } from '../lib/auth.js';
 import { get } from 'node:http';
 import { eq, and, desc, count } from 'drizzle-orm';
-import { computeNextDoseAt, computeNextAllowedDoseAt } from '../lib/nextDose.js';
+import { computeNextAllowedDoseAt, computeNextDueAt } from '../lib/nextDose.js';
 import { computeStats } from '../lib/stats.js';
 import { offsetDiffMinutes, toProcessZone, fromProcessZone, DEFAULT_TIMEZONE } from '../lib/timezone.js';
 
@@ -67,7 +67,7 @@ const session = await auth.api.getSession({ headers: request.headers as any });
                 .orderBy(desc(doses_history.takenAt))
                 .limit(1);
 
-            const nextDoseDate = computeNextDoseAt(
+            const nextDoseDate = computeNextDueAt(
                 {
                     scheduleType: med.scheduleType,
                     fixedTime: med.fixedTime,
@@ -75,8 +75,7 @@ const session = await auth.api.getSession({ headers: request.headers as any });
                     daysOfWeek: med.daysOfWeek,
                     startDate: toProcessZone(med.startDate, diff),
                 },
-                lastDose ? toProcessZone(lastDose.takenAt, diff) : null,
-                toProcessZone(new Date(), diff)
+                lastDose ? toProcessZone(lastDose.takenAt, diff) : null
             );
             const nextDoseAt = nextDoseDate ? fromProcessZone(nextDoseDate, diff).toISOString() : null;
 

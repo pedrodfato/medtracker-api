@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeNextDoseAt, computeNextAllowedDoseAt } from './nextDose.js';
+import { computeNextDoseAt, computeNextAllowedDoseAt, computeNextDueAt } from './nextDose.js';
 
 test('fixed schedule: returns today at fixedTime if not yet passed', () => {
   const now = new Date('2026-09-09T10:00:00');
@@ -111,4 +111,38 @@ test('computeNextAllowedDoseAt: interval schedule adds intervalHours to the last
     lastDose
   );
   assert.equal(result?.toISOString(), new Date('2026-09-09T14:00:00').toISOString());
+});
+
+// computeNextDueAt: the "is a dose currently pending?" answer used for display
+// and for gating the take-button. Must never hide an overdue dose by jumping
+// forward past "now" - that's the bug computeNextDoseAt has on its own for
+// fixed/weekly schedules once their scheduled time has passed today.
+
+test('computeNextDueAt: fixed schedule stays overdue-today instead of jumping to tomorrow when a dose is still pending', () => {
+  // Last dose was yesterday at 08:05 (fixedTime 08:00). It is now 10:00 today,
+  // so today's 08:00 slot is due and still unlogged - it must NOT roll to tomorrow.
+  const lastDose = new Date('2026-09-07T08:05:00');
+  const result = computeNextDueAt(
+    { scheduleType: 'fixed', fixedTime: '08:00', intervalHours: null, daysOfWeek: null, startDate: new Date('2026-09-01') },
+    lastDose
+  );
+  assert.equal(result?.toISOString(), new Date('2026-09-08T08:00:00').toISOString());
+});
+
+test('computeNextDueAt: fixed schedule, never taken, still overdue today instead of jumping to tomorrow', () => {
+  // Medication started in the past, fixedTime 08:00 already passed today (it's 10:00), never taken.
+  const result = computeNextDueAt(
+    { scheduleType: 'fixed', fixedTime: '08:00', intervalHours: null, daysOfWeek: null, startDate: new Date('2026-09-01T00:00:00') },
+    null
+  );
+  assert.equal(result?.toISOString(), new Date('2026-09-01T08:00:00').toISOString());
+});
+
+test('computeNextDueAt: interval schedule with no dose taken falls back to startDate', () => {
+  const startDate = new Date('2026-09-01T09:00:00');
+  const result = computeNextDueAt(
+    { scheduleType: 'interval', fixedTime: null, intervalHours: 8, daysOfWeek: null, startDate },
+    null
+  );
+  assert.equal(result?.toISOString(), startDate.toISOString());
 });
