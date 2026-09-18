@@ -99,3 +99,20 @@ export function computeNextDueAt(
   }
   return computeNextDoseAt(medication, null, medication.startDate);
 }
+
+/**
+ * A medication configured to a single day of the week ("once a week") should
+ * adapt to whichever day it's actually taken on, so the next reminder lands
+ * exactly 7 days later on that new day instead of the originally configured
+ * one. Medications with more than one configured day never drift - only a
+ * true once-a-week schedule has an unambiguous "new day" to move to.
+ * Returns the daysOfWeek to persist, or null if nothing should change.
+ */
+export function driftedWeeklyDaysOfWeek(
+  daysOfWeek: number[] | null,
+  takenDayOfWeek: number
+): number[] | null {
+  if (!daysOfWeek || daysOfWeek.length !== 1) return null;
+  if (daysOfWeek[0] === takenDayOfWeek) return null;
+  return [takenDayOfWeek];
+}

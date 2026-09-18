@@ -5,7 +5,7 @@ import { verifySession } from '../middlewares/auth-middleware.js';
 import { auth } from '../lib/auth.js';
 import { get } from 'node:http';
 import { eq, and, desc, count } from 'drizzle-orm';
-import { computeNextAllowedDoseAt, computeNextDueAt } from '../lib/nextDose.js';
+import { computeNextAllowedDoseAt, computeNextDueAt, driftedWeeklyDaysOfWeek } from '../lib/nextDose.js';
 import { computeStats } from '../lib/stats.js';
 import { offsetDiffMinutes, toProcessZone, fromProcessZone, DEFAULT_TIMEZONE } from '../lib/timezone.js';
 
@@ -144,6 +144,17 @@ const session = await auth.api.getSession({ headers: request.headers as any });
                     error: 'Dose ainda não disponível',
                     nextDoseAt: fromProcessZone(nextAllowedDate, diff).toISOString(),
                 });
+            }
+        }
+
+        if (medication.scheduleType === 'weekly') {
+            const takenDayOfWeek = toProcessZone(now, diff).getDay();
+            const newDaysOfWeek = driftedWeeklyDaysOfWeek(medication.daysOfWeek, takenDayOfWeek);
+
+            if (newDaysOfWeek) {
+                await db.update(medications)
+                    .set({ daysOfWeek: newDaysOfWeek })
+                    .where(eq(medications.id, medicationId));
             }
         }
 

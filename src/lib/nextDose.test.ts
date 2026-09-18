@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeNextDoseAt, computeNextAllowedDoseAt, computeNextDueAt } from './nextDose.js';
+import { computeNextDoseAt, computeNextAllowedDoseAt, computeNextDueAt, driftedWeeklyDaysOfWeek } from './nextDose.js';
 
 test('fixed schedule: returns today at fixedTime if not yet passed', () => {
   const now = new Date('2026-09-09T10:00:00');
@@ -145,4 +145,30 @@ test('computeNextDueAt: interval schedule with no dose taken falls back to start
     null
   );
   assert.equal(result?.toISOString(), startDate.toISOString());
+});
+
+// driftedWeeklyDaysOfWeek: a "once a week" medication (exactly one configured
+// day) adapts to whichever day it's actually taken on, so the next dose
+// lands exactly 7 days later on that new day - instead of nagging again on
+// the originally configured day. Multi-day schedules never drift.
+
+test('driftedWeeklyDaysOfWeek: single configured day, taken on a different day -> drifts to that day', () => {
+  // configured Monday (1), taken on Thursday (4)
+  assert.deepEqual(driftedWeeklyDaysOfWeek([1], 4), [4]);
+});
+
+test('driftedWeeklyDaysOfWeek: single configured day, taken on the same day -> no drift', () => {
+  assert.equal(driftedWeeklyDaysOfWeek([1], 1), null);
+});
+
+test('driftedWeeklyDaysOfWeek: multiple configured days -> never drifts', () => {
+  assert.equal(driftedWeeklyDaysOfWeek([1, 3, 5], 4), null);
+});
+
+test('driftedWeeklyDaysOfWeek: null daysOfWeek -> no drift', () => {
+  assert.equal(driftedWeeklyDaysOfWeek(null, 4), null);
+});
+
+test('driftedWeeklyDaysOfWeek: empty daysOfWeek -> no drift', () => {
+  assert.equal(driftedWeeklyDaysOfWeek([], 4), null);
 });
