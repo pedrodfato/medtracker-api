@@ -31,6 +31,18 @@ export const auth = betterAuth({
         defaultValue: "America/Sao_Paulo",
         input: true,
       },
+      reminderEnabled: {
+        type: "boolean",
+        required: false,
+        defaultValue: true,
+        input: true,
+      },
+      reminderLeadMinutes: {
+        type: "number",
+        required: false,
+        defaultValue: 10,
+        input: true,
+      },
     },
   },
 });

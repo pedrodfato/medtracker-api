@@ -1,4 +1,4 @@
-import { text, pgTable, serial, integer, timestamp, boolean, pgEnum } from 'drizzle-orm/pg-core';
+import { text, pgTable, serial, integer, timestamp, boolean, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const scheduleTypeEnum = pgEnum('schedule_type', ['fixed', 'interval', 'weekly']);
 
@@ -9,6 +9,8 @@ export const user = pgTable('user', {
   emailVerified: boolean("email_verified").notNull(),
   image: text('image'),
   timezone: text('timezone').notNull().default('America/Sao_Paulo'),
+  reminderEnabled: boolean('reminder_enabled').notNull().default(true),
+  reminderLeadMinutes: integer('reminder_lead_minutes').notNull().default(10),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp("updated_at").notNull(),
 })
@@ -72,3 +74,13 @@ export const doses_history = pgTable('doses_history', {
 	  takenAt: timestamp('taken_at').notNull(),
 	  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
 });
+
+export const reminders_sent = pgTable('reminders_sent', {
+  id: serial('id').primaryKey(),
+  medicationId: integer('medication_id').notNull().references(() => medications.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  scheduledFor: timestamp('scheduled_for').notNull(),
+  sentAt: timestamp('sent_at').notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('reminders_sent_medication_slot_idx').on(table.medicationId, table.scheduledFor),
+]);
