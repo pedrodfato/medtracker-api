@@ -188,3 +188,24 @@ test('fuso do usuário: 14:00 em Manaus é 15:00 em Brasília', () => {
   assert.equal(result[0]?.scheduledFor.toISOString(), at('2026-11-03T14:00:00-04:00').toISOString());
   assert.equal(result[0]?.timezone, 'America/Manaus');
 });
+
+test('remédio que ainda não começou não gera lembrete', () => {
+  const result = findDueReminders(
+    [candidate({
+      medication: { startDate: at('2026-11-05T08:00:00-03:00') },
+    })],
+    at('2026-11-03T13:55:00-03:00')
+  );
+  assert.equal(result.length, 0);
+});
+
+test('horário depois do fim do tratamento não gera lembrete', () => {
+  const result = findDueReminders(
+    [candidate({
+      medication: { endDate: at('2026-11-03T13:58:00-03:00') },
+      lastDoseTakenAt: at('2026-11-02T14:00:00-03:00'),
+    })],
+    at('2026-11-03T13:52:00-03:00')
+  );
+  assert.equal(result.length, 0);
+});

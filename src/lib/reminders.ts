@@ -91,6 +91,10 @@ export function findDueReminders(candidates: ReminderCandidate[], now: Date): Du
     const toleranceMs = REMINDER_LATE_TOLERANCE_MINUTES * MINUTE;
 
     for (const slot of candidateSlots(candidate, now)) {
+      // Skip slots outside the medication's date range.
+      if (slot.getTime() < medication.startDate.getTime()) continue;
+      if (medication.endDate && slot.getTime() > medication.endDate.getTime()) continue;
+
       const windowStart = slot.getTime() - leadMs;
       const windowEnd = slot.getTime() + toleranceMs;
 
