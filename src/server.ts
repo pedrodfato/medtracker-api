@@ -3,6 +3,7 @@ process.env.TZ = 'America/Sao_Paulo';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { medicationsRoutes } from './routes/medication-routes.js';
+import { cronRoutes } from './routes/cron-routes.js';
 import { auth } from './lib/auth.js';
 import { toNodeHandler } from "better-auth/node";
 import { parseTrustedOrigins } from './lib/trustedOrigins.js';
@@ -42,5 +43,6 @@ app.all('/api/auth/*', async (request, reply) => {
 })
 
 app.register(medicationsRoutes);
+app.register(cronRoutes);
 
 app.listen({host: '0.0.0.0', port: process.env.PORT ? Number(process.env.PORT) : 3333})
