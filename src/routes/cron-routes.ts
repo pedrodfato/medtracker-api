@@ -54,30 +54,38 @@ export async function cronRoutes(app: FastifyInstance) {
         let failed = 0;
 
         for (const reminder of due) {
-            // Claim the slot first: the unique index guarantees a single email
-            // per dose even if two cron runs overlap.
-            const [claimed] = await db.insert(reminders_sent)
-                .values({
-                    medicationId: reminder.medicationId,
-                    userId: reminder.userId,
-                    scheduledFor: reminder.scheduledFor,
-                })
-                .onConflictDoNothing({ target: [reminders_sent.medicationId, reminders_sent.scheduledFor] })
-                .returning({ id: reminders_sent.id });
-
-            if (!claimed) {
-                skipped++;
-                continue;
-            }
-
+            let claimedId: number | null = null;
             try {
+                // Claim the slot first: the unique index guarantees a single email
+                // per dose even if two cron runs overlap.
+                const [claimed] = await db.insert(reminders_sent)
+                    .values({
+                        medicationId: reminder.medicationId,
+                        userId: reminder.userId,
+                        scheduledFor: reminder.scheduledFor,
+                    })
+                    .onConflictDoNothing({ target: [reminders_sent.medicationId, reminders_sent.scheduledFor] })
+                    .returning({ id: reminders_sent.id });
+
+                if (!claimed) {
+                    skipped++;
+                    continue;
+                }
+                claimedId = claimed.id;
+
                 await sendDoseReminder(reminder);
                 sent++;
             } catch (error) {
-                // Release the claim so the next run retries this dose.
-                await db.delete(reminders_sent).where(eq(reminders_sent.id, claimed.id));
                 failed++;
                 app.log.error({ err: error, medicationId: reminder.medicationId }, 'Falha ao enviar lembrete');
+                if (claimedId !== null) {
+                    // Release the claim so the next run retries this dose.
+                    try {
+                        await db.delete(reminders_sent).where(eq(reminders_sent.id, claimedId));
+                    } catch (releaseError) {
+                        app.log.error({ err: releaseError, medicationId: reminder.medicationId }, 'Falha ao liberar lembrete para nova tentativa');
+                    }
+                }
             }
         }
 
