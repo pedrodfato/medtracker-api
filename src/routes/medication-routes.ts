@@ -166,6 +166,41 @@ const session = await auth.api.getSession({ headers: request.headers as any });
         return reply.status(200).send({ message: 'Dose registrada com sucesso!' });
     })
 
+    app.delete('/medication/:id/take', {preHandler: [verifySession]}, async (request, reply) => {
+        const {id} = request.params as {id: string};
+        const medicationId = Number(id);
+
+        if (Number.isNaN(medicationId)) {
+            return reply.status(400).send({ error: 'Invalid medication id' });
+        }
+
+        const session = await auth.api.getSession({headers: request.headers as any});
+
+        if (!session || !session.user) {
+            return reply.status(401).send({ error: 'Unauthorized' });
+        }
+
+        const userId = session.user.id;
+
+        const [lastDose] = await db.select()
+            .from(doses_history)
+            .where(and(eq(doses_history.medicationId, medicationId), eq(doses_history.userId, userId)))
+            .orderBy(desc(doses_history.takenAt))
+            .limit(1);
+
+        if (!lastDose) {
+            return reply.status(404).send({ error: 'Nenhuma dose para desfazer' });
+        }
+
+        try {
+            await db.delete(doses_history).where(eq(doses_history.id, lastDose.id));
+            return reply.status(200).send({ message: 'Dose desfeita com sucesso!' });
+        } catch (error) {
+            console.error('Erro ao desfazer dose:', error);
+            return reply.status(500).send({ error: 'Ocorreu um erro ao desfazer a dose.' });
+        }
+    })
+
     app.patch('/medications/:id', {preHandler: [verifySession]}, async (request, reply) => {
         const {id} = request.params as {id: string};
         const medicationId = Number(id);
