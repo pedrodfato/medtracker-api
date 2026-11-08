@@ -65,6 +65,7 @@ export const medications = pgTable('medications', {
   fixedTime: text('fixed_time'),
   daysOfWeek: integer('days_of_week').array(),
   graceWindowMinutes: integer('grace_window_minutes').default(30),
+  summaryDismissedAt: timestamp('summary_dismissed_at'),
   createdAt: timestamp('created_at').defaultNow(),
 });
 

@@ -7,6 +7,12 @@ import { get } from 'node:http';
 import { eq, and, desc, count } from 'drizzle-orm';
 import { computeNextAllowedDoseAt, computeNextDueAt, driftedWeeklyDaysOfWeek } from '../lib/nextDose.js';
 import { computeStats } from '../lib/stats.js';
+import {
+    computeEndDate,
+    computeTreatmentSummary,
+    durationDaysFromRange,
+    parseDurationDays,
+} from '../lib/treatmentSummary.js';
 import { offsetDiffMinutes, toProcessZone, fromProcessZone, DEFAULT_TIMEZONE } from '../lib/timezone.js';
 
 export async function medicationsRoutes(app: FastifyInstance) {
@@ -24,6 +30,13 @@ export async function medicationsRoutes(app: FastifyInstance) {
 
     const userId = session.user.id;
 
+    const durationDays = parseDurationDays(request.body && (request.body as any).durationDays);
+    if (durationDays === null) {
+        return reply.status(400).send({ error: 'Informe a duração do tratamento em dias (de 1 a 365).' });
+    }
+    const diff = offsetDiffMinutes((session.user as any).timezone ?? DEFAULT_TIMEZONE);
+    const start = new Date(startDate);
+
     try {
         await db.insert(medications).values({
             name,
@@ -35,7 +48,8 @@ export async function medicationsRoutes(app: FastifyInstance) {
             fixedTime,
             daysOfWeek,
             graceWindowMinutes,
-            startDate: new Date(startDate),
+            startDate: start,
+            endDate: computeEndDate(start, durationDays, diff),
             userId: userId,
         });
         
@@ -79,10 +93,46 @@ const session = await auth.api.getSession({ headers: request.headers as any });
             );
             const nextDoseAt = nextDoseDate ? fromProcessZone(nextDoseDate, diff).toISOString() : null;
 
+            let durationDays: number | null = null;
+            let completed = false;
+            let treatmentSummary = null;
+
+            if (med.endDate) {
+                durationDays = durationDaysFromRange(med.startDate, med.endDate, diff);
+                const medDoses = await db.select()
+                    .from(doses_history)
+                    .where(eq(doses_history.medicationId, med.id));
+                const summary = computeTreatmentSummary(
+                    {
+                        scheduleType: med.scheduleType,
+                        fixedTime: med.fixedTime,
+                        intervalHours: med.intervalHours,
+                        daysOfWeek: med.daysOfWeek,
+                        startDate: toProcessZone(med.startDate, diff),
+                        endDate: toProcessZone(med.endDate, diff),
+                    },
+                    medDoses.map((d) => ({ takenAt: toProcessZone(d.takenAt, diff) })),
+                );
+                // Treatment is over once its last expected dose time has passed.
+                completed = toProcessZone(new Date(), diff).getTime() > summary.readyAt.getTime();
+                if (completed) {
+                    treatmentSummary = {
+                        expected: summary.expected,
+                        taken: summary.taken,
+                        perfect: summary.perfect,
+                        missedDays: summary.missedDays,
+                        dismissed: med.summaryDismissedAt !== null,
+                    };
+                }
+            }
+
             return {
                 ...med,
-                nextDoseAt,
+                nextDoseAt: completed ? null : nextDoseAt,
                 lastTakenAt: lastDose ? lastDose.takenAt.toISOString() : null,
+                durationDays,
+                completed,
+                treatmentSummary,
             };
         }));
 
@@ -225,17 +275,62 @@ const session = await auth.api.getSession({ headers: request.headers as any });
             return reply.status(404).send({ error: 'Medicamento não encontrado' });
         }
 
-        const { name, dosage, category, scheduleType, daysOfWeek, fixedTime } = request.body as any;
+        const { name, dosage, category, scheduleType, daysOfWeek, fixedTime, durationDays: rawDuration } = request.body as any;
+
+        let endDateUpdate: { endDate?: Date; summaryDismissedAt?: null } = {};
+        if (rawDuration !== undefined && rawDuration !== null && rawDuration !== '') {
+            const durationDays = parseDurationDays(rawDuration);
+            if (durationDays === null) {
+                return reply.status(400).send({ error: 'Informe a duração do tratamento em dias (de 1 a 365).' });
+            }
+            const diff = offsetDiffMinutes((session.user as any).timezone ?? DEFAULT_TIMEZONE);
+            const newEndDate = computeEndDate(medication.startDate, durationDays, diff);
+            // Extending a finished treatment makes its summary relevant again.
+            endDateUpdate = newEndDate.getTime() > Date.now()
+                ? { endDate: newEndDate, summaryDismissedAt: null }
+                : { endDate: newEndDate };
+        }
 
         try {
             await db.update(medications)
-                .set({ name, dosage, category, scheduleType, daysOfWeek, fixedTime })
+                .set({ name, dosage, category, scheduleType, daysOfWeek, fixedTime, ...endDateUpdate })
                 .where(and(eq(medications.id, medicationId), eq(medications.userId, userId)));
 
             return reply.status(200).send({ message: 'Remédio atualizado com sucesso!' });
         } catch (error) {
             console.error('Erro ao atualizar o remédio:', error);
             return reply.status(500).send({ error: 'Ocorreu um erro ao atualizar o remédio.' });
+        }
+    })
+
+    app.post('/medications/:id/summary/dismiss', {preHandler: [verifySession]}, async (request, reply) => {
+        const {id} = request.params as {id: string};
+        const medicationId = Number(id);
+
+        if (Number.isNaN(medicationId)) {
+            return reply.status(400).send({ error: 'Invalid medication id' });
+        }
+
+        const session = await auth.api.getSession({headers: request.headers as any});
+
+        if (!session || !session.user) {
+            return reply.status(401).send({ error: 'Unauthorized' });
+        }
+
+        try {
+            const updated = await db.update(medications)
+                .set({ summaryDismissedAt: new Date() })
+                .where(and(eq(medications.id, medicationId), eq(medications.userId, session.user.id)))
+                .returning({ id: medications.id });
+
+            if (updated.length === 0) {
+                return reply.status(404).send({ error: 'Medicamento não encontrado' });
+            }
+
+            return reply.status(200).send({ message: 'Resumo dispensado.' });
+        } catch (error) {
+            console.error('Erro ao dispensar resumo:', error);
+            return reply.status(500).send({ error: 'Ocorreu um erro ao dispensar o resumo.' });
         }
     })
 
@@ -292,6 +387,7 @@ const session = await auth.api.getSession({ headers: request.headers as any });
                 intervalHours: m.intervalHours,
                 daysOfWeek: m.daysOfWeek,
                 startDate: toProcessZone(m.startDate, diff),
+                endDate: m.endDate ? toProcessZone(m.endDate, diff) : null,
             });
             const toStatsDose = (d: typeof userDoses[number]) => ({ medicationId: d.medicationId, takenAt: toProcessZone(d.takenAt, diff) });
 
