@@ -4,7 +4,7 @@
 Todo remédio passa a ter uma duração em dias (ex.: "10 dias", como o médico receitou). No último dia do tratamento, o dashboard mostra um popup com o resultado: quantas doses foram tomadas das previstas, e em quais dias houve doses perdidas.
 
 ## Decisões
-- Duração informada em **número de dias**, campo obrigatório (mínimo 1). O dia do cadastro conta como dia 1.
+- Duração informada em **número de dias**, campo obrigatório ao criar (de 1 a 365). O dia do cadastro conta como dia 1.
 - Remédios concluídos saem do dashboard ("Próxima Dose") e ficam na lista com selo "Concluído" e o score final. O histórico de doses é mantido.
 - O popup **não** depende de o usuário tomar a "última dose". Ele aparece quando a última dose prevista do último dia já passou, na primeira abertura do app a partir daí (no próprio dia ou depois), até o usuário dispensar.
 - O score cobre o tratamento inteiro, do início ao fim.
@@ -22,21 +22,22 @@ Todo remédio passa a ter uma duração em dias (ex.: "10 dias", como o médico 
 Entrada: medicamento (`scheduleType`, `fixedTime`, `intervalHours`, `daysOfWeek`, `startDate`, `endDate`), doses tomadas, fuso. Saída:
 
 ```
-{ expected, taken, perfect, missedDays: [{ date: 'YYYY-MM-DD', missed, expected }], lastSlotAt }
+{ expected, taken, perfect, missedDays: [{ date: 'YYYY-MM-DD', missed, expected }], readyAt }
 ```
 
 - Enumera as doses previstas entre `startDate` e `endDate`: `fixed` = 1 por dia no `fixedTime`; `weekly` = 1 nos dias de `daysOfWeek`; `interval` = grade a cada `intervalHours` a partir do `startDate`.
 - Agrupa por dia local. `taken` por dia é limitado ao previsto do dia, então tomar doses a mais não compensa dias perdidos.
 - `missedDays` lista só os dias com `taken < expected`. `perfect` = nenhum dia perdido.
 - Contagem por dia, o mesmo critério do `stats.ts` (que também não casa dose a dose por horário).
-- `lastSlotAt` é o horário da última dose prevista. O popup só dispara com `now > lastSlotAt`.
-- Weekly: `daysOfWeek` é ajustado quando o usuário toma em outro dia (`driftedWeeklyDaysOfWeek`). Por isso o resumo usa os `daysOfWeek` atuais, e o plano deve validar esse caso com teste.
+- `readyAt` é o horário da última dose prevista (ou o `endDate`, se não houver nenhuma). O popup só dispara com `now > readyAt`.
+- Weekly: `daysOfWeek` é ajustado quando o usuário toma em outro dia (`driftedWeeklyDaysOfWeek`). O resumo usa os `daysOfWeek` atuais; para remédios de um dia só por semana, a dose é casada por bloco de 7 dias contados do início (tomar na quarta em vez da quinta, na mesma semana, conta).
 - Trabalha em fuso do processo, via `toProcessZone`/`fromProcessZone` de `timezone.ts`, como o resto da API.
 
 ## API
-- `GET /medications` devolve em cada item: `endDate`, `completed` (boolean: `now > endDate`) e `treatmentSummary` (objeto acima, ou `null`) quando `now > lastSlotAt` e `summary_dismissed_at` é nulo.
+- `GET /medications` devolve em cada item: `durationDays`, `completed` (boolean: `now > readyAt`, ou seja, não há mais dose prevista) e `treatmentSummary` (objeto acima mais `dismissed`, ou `null` se ainda não concluído). Para concluídos, `nextDoseAt` é `null`.
 - `POST /medications/:id/summary/dismiss` grava `summary_dismissed_at = now()` (404 se o remédio não for do usuário).
-- O score final dos concluídos aparece na lista: `GET /medications` inclui `treatmentSummary` calculado também para concluídos já dispensados, com um campo `dismissed`.
+- O popup aparece para itens com `treatmentSummary.dismissed === false`; a lista mostra o score de todos os concluídos.
+- As estatísticas (`stats.ts`) deixam de esperar doses depois do `endDate`, para o remédio concluído não acumular "doses perdidas" nos insights.
 
 ## Frontend (medtracker)
 - `addMedications.tsx`: campo numérico "Por quantos dias?" (obrigatório, min 1); em edição, pré-preenchido com a duração atual. Envia `durationDays`.
