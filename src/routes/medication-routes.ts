@@ -36,6 +36,9 @@ export async function medicationsRoutes(app: FastifyInstance) {
     }
     const diff = offsetDiffMinutes((session.user as any).timezone ?? DEFAULT_TIMEZONE);
     const start = new Date(startDate);
+    if (Number.isNaN(start.getTime())) {
+        return reply.status(400).send({ error: 'Data de início inválida.' });
+    }
 
     try {
         await db.insert(medications).values({
@@ -72,14 +75,21 @@ const session = await auth.api.getSession({ headers: request.headers as any });
         const userMeds = await db.select().from(medications).where(eq(medications.userId, userId));
 
 
-        const enrichedMeds = await Promise.all(userMeds.map(async (med) => {
+        // One query for every dose of the user, grouped by medication.
+        const userDoses = await db.select().from(doses_history).where(eq(doses_history.userId, userId));
+        const dosesByMedication = new Map<number, typeof userDoses>();
+        for (const dose of userDoses) {
+            const list = dosesByMedication.get(dose.medicationId);
+            if (list) list.push(dose);
+            else dosesByMedication.set(dose.medicationId, [dose]);
+        }
 
-
-            const [lastDose] = await db.select()
-                .from(doses_history)
-                .where(eq(doses_history.medicationId, med.id))
-                .orderBy(desc(doses_history.takenAt))
-                .limit(1);
+        const enrichedMeds = userMeds.map((med) => {
+            const medDoses = dosesByMedication.get(med.id) ?? [];
+            const lastDose = medDoses.reduce<(typeof medDoses)[number] | undefined>(
+                (latest, dose) => (!latest || dose.takenAt.getTime() > latest.takenAt.getTime() ? dose : latest),
+                undefined,
+            );
 
             const nextDoseDate = computeNextDueAt(
                 {
@@ -99,9 +109,6 @@ const session = await auth.api.getSession({ headers: request.headers as any });
 
             if (med.endDate) {
                 durationDays = durationDaysFromRange(med.startDate, med.endDate, diff);
-                const medDoses = await db.select()
-                    .from(doses_history)
-                    .where(eq(doses_history.medicationId, med.id));
                 const summary = computeTreatmentSummary(
                     {
                         scheduleType: med.scheduleType,
@@ -134,7 +141,7 @@ const session = await auth.api.getSession({ headers: request.headers as any });
                 completed,
                 treatmentSummary,
             };
-        }));
+        });
 
         return reply.status(200).send({ data: enrichedMeds });
 
