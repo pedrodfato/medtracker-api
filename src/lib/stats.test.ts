@@ -92,3 +92,20 @@ test('missedByMedication breaks down missed doses per medication, sorted by coun
     { medicationId: 2, missedCount: 2 },
   ]);
 });
+
+test('computeStats: não espera doses depois do endDate do tratamento', () => {
+  const stats = computeStats(
+    [{
+      id: 1,
+      scheduleType: 'fixed',
+      intervalHours: null,
+      daysOfWeek: null,
+      startDate: new Date('2026-11-01T08:00:00-03:00'),
+      endDate: new Date('2026-11-03T23:59:59.999-03:00'),
+    }],
+    [],
+    new Date('2026-11-08T12:00:00-03:00'),
+  );
+  // Janela da semana começa em 02/11; o tratamento só vai até 03/11 (2 dias).
+  assert.equal(stats.missedDoses, 2);
+});

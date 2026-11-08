@@ -4,6 +4,7 @@ export type StatsMedication = {
   intervalHours: number | null;
   daysOfWeek: number[] | null;
   startDate: Date;
+  endDate?: Date | null;
 };
 export type StatsDose = { medicationId: number; takenAt: Date };
 export type Stats = {
@@ -43,9 +44,11 @@ function daysBetweenInclusive(start: Date, end: Date): number {
 
 function expectedDosesInWindow(medication: StatsMedication, windowStart: Date, now: Date): number {
   const effectiveStart = medication.startDate.getTime() > windowStart.getTime() ? medication.startDate : windowStart;
-  if (effectiveStart.getTime() > now.getTime()) return 0;
+  // A finished treatment stops expecting doses at its end date.
+  const until = medication.endDate && medication.endDate.getTime() < now.getTime() ? medication.endDate : now;
+  if (effectiveStart.getTime() > until.getTime()) return 0;
 
-  const daysInWindow = daysBetweenInclusive(effectiveStart, now);
+  const daysInWindow = daysBetweenInclusive(effectiveStart, until);
 
   if (medication.scheduleType === 'fixed') return daysInWindow;
 
@@ -62,7 +65,7 @@ function expectedDosesInWindow(medication: StatsMedication, windowStart: Date, n
   }
 
   if (medication.scheduleType === 'interval' && medication.intervalHours) {
-    const hoursInWindow = (now.getTime() - effectiveStart.getTime()) / (60 * 60 * 1000);
+    const hoursInWindow = (until.getTime() - effectiveStart.getTime()) / (60 * 60 * 1000);
     return Math.floor(hoursInWindow / medication.intervalHours);
   }
 
