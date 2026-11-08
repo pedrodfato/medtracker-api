@@ -285,8 +285,9 @@ const session = await auth.api.getSession({ headers: request.headers as any });
             }
             const diff = offsetDiffMinutes((session.user as any).timezone ?? DEFAULT_TIMEZONE);
             const newEndDate = computeEndDate(medication.startDate, durationDays, diff);
-            // Extending a finished treatment makes its summary relevant again.
-            endDateUpdate = newEndDate.getTime() > Date.now()
+            // Extending a finished treatment makes its summary relevant again; re-sending the same duration must not.
+            const isExtended = !medication.endDate || newEndDate.getTime() > medication.endDate.getTime();
+            endDateUpdate = isExtended && newEndDate.getTime() > Date.now()
                 ? { endDate: newEndDate, summaryDismissedAt: null }
                 : { endDate: newEndDate };
         }
