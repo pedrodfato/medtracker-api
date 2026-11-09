@@ -29,7 +29,7 @@ type DayAdherence = { date: 'YYYY-MM-DD'; expected: number; taken: number }
 - Datas já deslocadas com `toProcessZone`, como no resto do módulo.
 - `computeTreatmentSummary` continua com o mesmo contrato e os mesmos testes; só passa a usar o `expectedSlots` refatorado.
 
-`todayAdherence` chama `dailyAdherence` com `from` = 00:00 de hoje e `until` = 23:59:59.999 de hoje (limitado ao `endDate`), e usa o único item devolvido. Com isso, uma dose prevista para mais tarde no dia conta como prevista e ainda não tomada (cinza). No histórico, o dia de hoje vai só até agora: dose de mais tarde ainda não aparece como prevista na grade.
+`todayAdherence` chama `dailyAdherence` com `from` = 00:00 de hoje e `until` = 23:59:59.999 de hoje (limitado ao `endDate`), e usa o único item devolvido. Com isso, uma dose prevista para mais tarde no dia conta como prevista e ainda não tomada (cinza). O histórico usa a mesma regra (`historyUntil`): o dia de hoje vai até 23:59, então uma dose de mais tarde já conta como prevista na grade, igual à faixa.
 
 ## API
 - `GET /medications`: cada item ganha `today: { expected: number; taken: number }`. Remédio concluído: `today: { expected: 0, taken: 0 }`.

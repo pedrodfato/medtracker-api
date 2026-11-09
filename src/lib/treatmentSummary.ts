@@ -167,8 +167,15 @@ export function dailyAdherence(m: Schedule, doses: SummaryDose[], from: Date, un
   return days;
 }
 
-// The whole of today (including doses scheduled for later today), cut at the
-// treatment's end date.
+// End of today, or the treatment's end date if it comes first. Both the Today
+// strip and the history grid count every dose scheduled for today, including
+// the ones due later.
+export function historyUntil(now: Date, endDate: Date | null): Date {
+  const dayEnd = new Date(now);
+  dayEnd.setHours(23, 59, 59, 999);
+  return endDate && endDate.getTime() < dayEnd.getTime() ? endDate : dayEnd;
+}
+
 export function todayAdherence(
   m: Schedule,
   doses: SummaryDose[],
@@ -177,9 +184,6 @@ export function todayAdherence(
 ): { expected: number; taken: number } {
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(now);
-  dayEnd.setHours(23, 59, 59, 999);
-  const until = endDate && endDate.getTime() < dayEnd.getTime() ? endDate : dayEnd;
-  const [day] = dailyAdherence(m, doses, dayStart, until);
+  const [day] = dailyAdherence(m, doses, dayStart, historyUntil(now, endDate));
   return day ? { expected: day.expected, taken: day.taken } : { expected: 0, taken: 0 };
 }

@@ -2,7 +2,7 @@ process.env.TZ = 'America/Sao_Paulo';
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dailyAdherence, todayAdherence, type Schedule } from './treatmentSummary.js';
+import { dailyAdherence, historyUntil, todayAdherence, type Schedule } from './treatmentSummary.js';
 
 const at = (iso: string) => new Date(iso);
 const doses = (...isos: string[]) => isos.map((iso) => ({ takenAt: at(iso) }));
@@ -112,4 +112,23 @@ test('todayAdherence: cadastrado hoje depois do horário não tem dose hoje', ()
 test('todayAdherence: weekly em dia de folga', () => {
   const m = sched('2026-11-02T07:00:00-03:00', { scheduleType: 'weekly', daysOfWeek: [1] });
   assert.deepEqual(todayAdherence(m, [], at('2026-11-03T12:00:00-03:00'), null), { expected: 0, taken: 0 });
+});
+
+test('historyUntil: vai até o fim de hoje, como a faixa Hoje', () => {
+  assert.equal(
+    historyUntil(at('2026-11-03T12:00:00-03:00'), null).toISOString(),
+    at('2026-11-03T23:59:59.999-03:00').toISOString(),
+  );
+});
+
+test('historyUntil: para no fim do tratamento se ele terminou antes', () => {
+  const end = at('2026-11-02T23:59:59.999-03:00');
+  assert.equal(historyUntil(at('2026-11-03T12:00:00-03:00'), end).toISOString(), end.toISOString());
+});
+
+test('dailyAdherence com historyUntil: dose de mais tarde hoje conta como prevista', () => {
+  const m = sched('2026-11-02T07:00:00-03:00', { fixedTime: '20:00' });
+  const now = at('2026-11-03T12:00:00-03:00');
+  const days = dailyAdherence(m, doses('2026-11-03T10:00:00-03:00'), m.startDate, historyUntil(now, null));
+  assert.deepEqual(days.at(-1), { date: '2026-11-03', expected: 1, taken: 1 });
 });

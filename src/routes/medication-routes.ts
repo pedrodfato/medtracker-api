@@ -12,6 +12,7 @@ import {
     computeTreatmentSummary,
     dailyAdherence,
     durationDaysFromRange,
+    historyUntil,
     parseDurationDays,
     todayAdherence,
 } from '../lib/treatmentSummary.js';
@@ -362,8 +363,8 @@ const session = await auth.api.getSession({ headers: request.headers as any });
             const startLocal = toProcessZone(medication.startDate, diff);
             const nowLocal = toProcessZone(new Date(), diff);
             const endLocal = medication.endDate ? toProcessZone(medication.endDate, diff) : null;
-            // History runs up to now, or to the end of the treatment if it is over.
-            const until = endLocal && endLocal.getTime() < nowLocal.getTime() ? endLocal : nowLocal;
+            // Same rule as the Today strip: all of today, or up to the end of the treatment.
+            const until = historyUntil(nowLocal, endLocal);
 
             const days = dailyAdherence(
                 {
