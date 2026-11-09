@@ -60,6 +60,8 @@ export const medications = pgTable('medications', {
   endDate: timestamp('end_date'), 
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   category: text('category', { enum: ['pill', 'drop', 'vitamin'] }).notNull().default('pill'),
+  form: text('form', { enum: ['tablet_round', 'tablet_oval', 'capsule', 'drops', 'syrup', 'injection', 'ointment', 'sachet'] }).notNull().default('tablet_round'),
+  color: text('color').notNull().default('#F2F2EE'),
   scheduleType: text('schedule_type', { enum: ['fixed', 'interval', 'weekly'] }).notNull().default('interval'),
   intervalHours: integer('interval_hours'),
   fixedTime: text('fixed_time'),

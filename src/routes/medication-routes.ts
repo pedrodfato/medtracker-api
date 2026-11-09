@@ -16,7 +16,18 @@ import {
     parseDurationDays,
     todayAdherence,
 } from '../lib/treatmentSummary.js';
+import { categoryForForm, parseMedicationColor, parseMedicationForm } from '../lib/medicationAppearance.js';
 import { offsetDiffMinutes, toProcessZone, fromProcessZone, DEFAULT_TIMEZONE } from '../lib/timezone.js';
+
+// Optional `form`/`color` in a create or edit body: absent means "keep the default/current".
+function parseAppearance(body: unknown) {
+    const { form: rawForm, color: rawColor } = (body ?? {}) as { form?: unknown; color?: unknown };
+    const form = rawForm === undefined ? null : parseMedicationForm(rawForm);
+    if (rawForm !== undefined && form === null) return { error: 'Forma do remédio inválida.' } as const;
+    const color = rawColor === undefined ? null : parseMedicationColor(rawColor);
+    if (rawColor !== undefined && color === null) return { error: 'Cor do remédio inválida.' } as const;
+    return { form, color };
+}
 
 export async function medicationsRoutes(app: FastifyInstance) {
     app.post('/medications', {preHandler: [verifySession]}, async (request, reply) => {
@@ -43,12 +54,19 @@ export async function medicationsRoutes(app: FastifyInstance) {
         return reply.status(400).send({ error: 'Data de início inválida.' });
     }
 
+    const appearance = parseAppearance(request.body);
+    if ('error' in appearance) {
+        return reply.status(400).send({ error: appearance.error });
+    }
+
     try {
         await db.insert(medications).values({
             name,
             dosage,
             totalPills,
-            category,
+            category: appearance.form ? categoryForForm(appearance.form) : category,
+            ...(appearance.form ? { form: appearance.form } : {}),
+            ...(appearance.color ? { color: appearance.color } : {}),
             scheduleType,
             intervalHours,
             fixedTime,
@@ -303,6 +321,11 @@ const session = await auth.api.getSession({ headers: request.headers as any });
 
         const { name, dosage, category, scheduleType, daysOfWeek, fixedTime, durationDays: rawDuration } = request.body as any;
 
+        const appearance = parseAppearance(request.body);
+        if ('error' in appearance) {
+            return reply.status(400).send({ error: appearance.error });
+        }
+
         let endDateUpdate: { endDate?: Date; summaryDismissedAt?: null } = {};
         if (rawDuration !== undefined && rawDuration !== null && rawDuration !== '') {
             const durationDays = parseDurationDays(rawDuration);
@@ -320,7 +343,17 @@ const session = await auth.api.getSession({ headers: request.headers as any });
 
         try {
             await db.update(medications)
-                .set({ name, dosage, category, scheduleType, daysOfWeek, fixedTime, ...endDateUpdate })
+                .set({
+                    name,
+                    dosage,
+                    category: appearance.form ? categoryForForm(appearance.form) : category,
+                    form: appearance.form ?? undefined,
+                    color: appearance.color ?? undefined,
+                    scheduleType,
+                    daysOfWeek,
+                    fixedTime,
+                    ...endDateUpdate,
+                })
                 .where(and(eq(medications.id, medicationId), eq(medications.userId, userId)));
 
             return reply.status(200).send({ message: 'Remédio atualizado com sucesso!' });
@@ -512,6 +545,8 @@ const session = await auth.api.getSession({ headers: request.headers as any });
                 medicationName: medications.name,
                 dosage: medications.dosage,
                 category: medications.category,
+                form: medications.form,
+                color: medications.color,
             })
                 .from(doses_history)
                 .innerJoin(medications, eq(doses_history.medicationId, medications.id))
