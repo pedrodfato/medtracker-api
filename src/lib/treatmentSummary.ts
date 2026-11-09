@@ -23,6 +23,9 @@ export type TreatmentSummary = {
   readyAt: Date;
 };
 
+export type Schedule = Omit<SummaryMedication, 'endDate'>;
+export type DayAdherence = { date: string; expected: number; taken: number };
+
 export function parseDurationDays(value: unknown): number | null {
   const n: unknown = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
   if (typeof n !== 'number' || !Number.isInteger(n) || n < 1 || n > MAX_DURATION_DAYS) return null;
@@ -51,13 +54,13 @@ function dayStartMs(d: Date): number {
   return copy.getTime();
 }
 
-// Every dose the schedule expects between startDate and endDate, oldest first.
+// Every dose the schedule expects between startDate and `until`, oldest first.
 // Mirrors nextDose.ts: with no dose taken yet, the first one is the first slot
-// at or after startDate.
-function expectedSlots(m: SummaryMedication): Date[] {
+// at or after startDate. Interval slots are always anchored on startDate.
+function expectedSlots(m: Schedule, until: Date): Date[] {
   const slots: Date[] = [];
   const startMs = m.startDate.getTime();
-  const endMs = m.endDate.getTime();
+  const endMs = until.getTime();
 
   if (m.scheduleType === 'interval') {
     if (!m.intervalHours || m.intervalHours < 0) return slots;
@@ -83,7 +86,7 @@ function expectedSlots(m: SummaryMedication): Date[] {
 }
 
 export function computeTreatmentSummary(m: SummaryMedication, doses: SummaryDose[]): TreatmentSummary {
-  const slots = expectedSlots(m);
+  const slots = expectedSlots(m, m.endDate);
 
   // A once-a-week medication moves to whichever weekday it was actually taken
   // on (see driftedWeeklyDaysOfWeek), so it is matched per 7-day block counted
@@ -124,4 +127,59 @@ export function computeTreatmentSummary(m: SummaryMedication, doses: SummaryDose
     missedDays,
     readyAt: slots.length > 0 ? slots[slots.length - 1]! : m.endDate,
   };
+}
+
+// One entry per calendar day from max(from, startDate) to `until`. `taken` is
+// capped at `expected` on scheduled days; on days with nothing scheduled it is
+// the real number of doses taken.
+export function dailyAdherence(m: Schedule, doses: SummaryDose[], from: Date, until: Date): DayAdherence[] {
+  const fromMs = Math.max(from.getTime(), m.startDate.getTime());
+  const untilMs = until.getTime();
+  if (untilMs < fromMs) return [];
+
+  const days: DayAdherence[] = [];
+  const byDate = new Map<string, DayAdherence>();
+  const cursor = new Date(fromMs);
+  cursor.setHours(0, 0, 0, 0);
+  while (cursor.getTime() <= untilMs) {
+    const day = { date: dateKey(cursor), expected: 0, taken: 0 };
+    days.push(day);
+    byDate.set(day.date, day);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  for (const slot of expectedSlots(m, until)) {
+    if (slot.getTime() < fromMs) continue;
+    const day = byDate.get(dateKey(slot));
+    if (day) day.expected += 1;
+  }
+
+  for (const dose of doses) {
+    const t = dose.takenAt.getTime();
+    if (t < fromMs || t > untilMs) continue;
+    const day = byDate.get(dateKey(dose.takenAt));
+    if (day) day.taken += 1;
+  }
+
+  for (const day of days) {
+    if (day.expected > 0) day.taken = Math.min(day.taken, day.expected);
+  }
+  return days;
+}
+
+// The whole of today (including doses scheduled for later today), cut at the
+// treatment's end date.
+export function todayAdherence(
+  m: Schedule,
+  doses: SummaryDose[],
+  now: Date,
+  endDate: Date | null,
+): { expected: number; taken: number } {
+  const dayStart = new Date(now);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(now);
+  dayEnd.setHours(23, 59, 59, 999);
+  const until = endDate && endDate.getTime() < dayEnd.getTime() ? endDate : dayEnd;
+  const [day] = dailyAdherence(m, doses, dayStart, until);
+  return day ? { expected: day.expected, taken: day.taken } : { expected: 0, taken: 0 };
 }
