@@ -15,20 +15,21 @@ Na página de Progresso, mostrar no topo quais remédios já foram tomados hoje 
 Nova função pura:
 
 ```
-dailyAdherence(medication, doses, until): DayAdherence[]
+dailyAdherence(schedule, doses, from, until): DayAdherence[]
+todayAdherence(schedule, doses, now, endDate): { expected, taken }
+type Schedule = Omit<SummaryMedication, 'endDate'>
 type DayAdherence = { date: 'YYYY-MM-DD'; expected: number; taken: number }
 ```
 
-- `medication`: mesmos campos de `SummaryMedication`, mas com `endDate: Date | null` (remédios antigos não têm fim).
-- `until`: último instante considerado. A rota passa `min(agora, endDate)`.
-- Gera as doses previstas entre `startDate` e `until` com a mesma lógica de `expectedSlots` (que passa a aceitar um limite final em vez de ler sempre `endDate`).
-- Devolve **um item por dia de calendário**, do dia de `startDate` ao dia de `until`, inclusive, em ordem. Dias sem dose prevista vêm com `expected: 0`.
+- `from`/`until`: janela consultada. A grade de horários continua ancorada no `startDate` do remédio (importante para o intervalo); `from` só filtra.
+- Gera as doses previstas com a mesma lógica de `expectedSlots` (que passa a aceitar um limite final em vez de ler sempre `endDate`).
+- Devolve **um item por dia de calendário**, do dia de `max(from, startDate)` ao dia de `until`, inclusive, em ordem. Dias sem dose prevista vêm com `expected: 0`.
 - `taken` conta as doses tomadas naquele dia, **limitado a `expected`** quando `expected > 0` (dose extra não infla o dia). Em dia com `expected: 0`, `taken` é o número real de doses tomadas.
 - Doses fora de `[startDate, until]` são ignoradas.
 - Datas já deslocadas com `toProcessZone`, como no resto do módulo.
 - `computeTreatmentSummary` continua com o mesmo contrato e os mesmos testes; só passa a usar o `expectedSlots` refatorado.
 
-Para "hoje", a rota chama `dailyAdherence` com o período só do dia atual: `startDate` = o maior entre o início do remédio e 00:00 de hoje, `until` = 23:59:59.999 de hoje (limitado ao `endDate`), e usa o único item devolvido. Com isso, uma dose prevista para mais tarde no dia conta como prevista e ainda não tomada (cinza).
+`todayAdherence` chama `dailyAdherence` com `from` = 00:00 de hoje e `until` = 23:59:59.999 de hoje (limitado ao `endDate`), e usa o único item devolvido. Com isso, uma dose prevista para mais tarde no dia conta como prevista e ainda não tomada (cinza). No histórico, o dia de hoje vai só até agora: dose de mais tarde ainda não aparece como prevista na grade.
 
 ## API
 - `GET /medications`: cada item ganha `today: { expected: number; taken: number }`. Remédio concluído: `today: { expected: 0, taken: 0 }`.
