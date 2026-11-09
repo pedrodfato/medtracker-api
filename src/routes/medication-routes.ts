@@ -10,8 +10,10 @@ import { computeStats } from '../lib/stats.js';
 import {
     computeEndDate,
     computeTreatmentSummary,
+    dailyAdherence,
     durationDaysFromRange,
     parseDurationDays,
+    todayAdherence,
 } from '../lib/treatmentSummary.js';
 import { offsetDiffMinutes, toProcessZone, fromProcessZone, DEFAULT_TIMEZONE } from '../lib/timezone.js';
 
@@ -133,6 +135,21 @@ const session = await auth.api.getSession({ headers: request.headers as any });
                 }
             }
 
+            const today = completed
+                ? { expected: 0, taken: 0 }
+                : todayAdherence(
+                    {
+                        scheduleType: med.scheduleType,
+                        fixedTime: med.fixedTime,
+                        intervalHours: med.intervalHours,
+                        daysOfWeek: med.daysOfWeek,
+                        startDate: toProcessZone(med.startDate, diff),
+                    },
+                    medDoses.map((d) => ({ takenAt: toProcessZone(d.takenAt, diff) })),
+                    toProcessZone(new Date(), diff),
+                    med.endDate ? toProcessZone(med.endDate, diff) : null,
+                );
+
             return {
                 ...med,
                 nextDoseAt: completed ? null : nextDoseAt,
@@ -140,6 +157,7 @@ const session = await auth.api.getSession({ headers: request.headers as any });
                 durationDays,
                 completed,
                 treatmentSummary,
+                today,
             };
         });
 
@@ -308,6 +326,71 @@ const session = await auth.api.getSession({ headers: request.headers as any });
         } catch (error) {
             console.error('Erro ao atualizar o remédio:', error);
             return reply.status(500).send({ error: 'Ocorreu um erro ao atualizar o remédio.' });
+        }
+    })
+
+    app.get('/medications/:id/history', {preHandler: [verifySession]}, async (request, reply) => {
+        const {id} = request.params as {id: string};
+        const medicationId = Number(id);
+
+        if (Number.isNaN(medicationId)) {
+            return reply.status(400).send({ error: 'Invalid medication id' });
+        }
+
+        const session = await auth.api.getSession({headers: request.headers as any});
+
+        if (!session || !session.user) {
+            return reply.status(401).send({ error: 'Unauthorized' });
+        }
+
+        const userId = session.user.id;
+        const diff = offsetDiffMinutes((session.user as any).timezone ?? DEFAULT_TIMEZONE);
+
+        try {
+            const [medication] = await db.select()
+                .from(medications)
+                .where(and(eq(medications.id, medicationId), eq(medications.userId, userId)));
+
+            if (!medication) {
+                return reply.status(404).send({ error: 'Medicamento não encontrado' });
+            }
+
+            const medDoses = await db.select()
+                .from(doses_history)
+                .where(eq(doses_history.medicationId, medicationId));
+
+            const startLocal = toProcessZone(medication.startDate, diff);
+            const nowLocal = toProcessZone(new Date(), diff);
+            const endLocal = medication.endDate ? toProcessZone(medication.endDate, diff) : null;
+            // History runs up to now, or to the end of the treatment if it is over.
+            const until = endLocal && endLocal.getTime() < nowLocal.getTime() ? endLocal : nowLocal;
+
+            const days = dailyAdherence(
+                {
+                    scheduleType: medication.scheduleType,
+                    fixedTime: medication.fixedTime,
+                    intervalHours: medication.intervalHours,
+                    daysOfWeek: medication.daysOfWeek,
+                    startDate: startLocal,
+                },
+                medDoses.map((d) => ({ takenAt: toProcessZone(d.takenAt, diff) })),
+                startLocal,
+                until,
+            );
+
+            return reply.status(200).send({
+                data: {
+                    medicationId,
+                    startDate: medication.startDate.toISOString(),
+                    endDate: medication.endDate ? medication.endDate.toISOString() : null,
+                    days,
+                    expected: days.reduce((sum, d) => sum + d.expected, 0),
+                    taken: days.reduce((sum, d) => sum + d.taken, 0),
+                },
+            });
+        } catch (error) {
+            console.error('Erro ao buscar histórico do remédio:', error);
+            return reply.status(500).send({ error: 'Erro interno ao buscar histórico' });
         }
     })
 
