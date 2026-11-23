@@ -17,6 +17,7 @@ import {
     todayAdherence,
 } from '../lib/treatmentSummary.js';
 import { categoryForForm, parseMedicationColor, parseMedicationForm } from '../lib/medicationAppearance.js';
+import { resolveTakenAt } from '../lib/takenAt.js';
 import { offsetDiffMinutes, toProcessZone, fromProcessZone, DEFAULT_TIMEZONE } from '../lib/timezone.js';
 
 // Optional `form`/`color` in a create or edit body: absent means "keep the default/current".
@@ -218,7 +219,16 @@ const session = await auth.api.getSession({ headers: request.headers as any });
             .orderBy(desc(doses_history.takenAt))
             .limit(1);
 
-        const now = new Date();
+        const resolved = resolveTakenAt((request.body as any)?.takenAt, {
+            now: new Date(),
+            startDate: medication.startDate,
+            lastDoseAt: lastDose?.takenAt ?? null,
+        });
+        if ('error' in resolved) {
+            return reply.status(resolved.status).send({ error: resolved.error });
+        }
+        // When the dose was actually taken: now, or an earlier moment the user picked.
+        const takenAt = resolved.takenAt;
         const diff = offsetDiffMinutes((session.user as any).timezone ?? DEFAULT_TIMEZONE);
 
         if (lastDose) {
@@ -233,7 +243,7 @@ const session = await auth.api.getSession({ headers: request.headers as any });
                 toProcessZone(lastDose.takenAt, diff)
             );
 
-            if (nextAllowedDate && fromProcessZone(nextAllowedDate, diff).getTime() > now.getTime()) {
+            if (nextAllowedDate && fromProcessZone(nextAllowedDate, diff).getTime() > takenAt.getTime()) {
                 return reply.status(409).send({
                     error: 'Dose ainda não disponível',
                     nextDoseAt: fromProcessZone(nextAllowedDate, diff).toISOString(),
@@ -242,7 +252,7 @@ const session = await auth.api.getSession({ headers: request.headers as any });
         }
 
         if (medication.scheduleType === 'weekly') {
-            const takenDayOfWeek = toProcessZone(now, diff).getDay();
+            const takenDayOfWeek = toProcessZone(takenAt, diff).getDay();
             const newDaysOfWeek = driftedWeeklyDaysOfWeek(medication.daysOfWeek, takenDayOfWeek);
 
             if (newDaysOfWeek) {
@@ -255,7 +265,7 @@ const session = await auth.api.getSession({ headers: request.headers as any });
         await db.insert(doses_history).values({
             userId,
             medicationId,
-            takenAt: now,
+            takenAt,
         })
         return reply.status(200).send({ message: 'Dose registrada com sucesso!' });
     })
