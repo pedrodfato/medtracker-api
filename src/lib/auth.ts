@@ -3,6 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "../db.js";
 import * as schema from "../schema.js";
 import { parseTrustedOrigins } from "./trustedOrigins.js";
+import { sendPasswordResetEmail } from "./email.js";
 import 'dotenv/config'
 
 export const auth = betterAuth({
@@ -13,6 +14,13 @@ export const auth = betterAuth({
 
   emailAndPassword: {
     enabled: true,
+    // `url` points at the API, which checks the token and redirects to the
+    // app's redirectTo page with ?token=... (or ?error=INVALID_TOKEN).
+    sendResetPassword: async ({ user, url }) => {
+      await sendPasswordResetEmail(user.email, user.name, url);
+    },
+    resetPasswordTokenExpiresIn: 60 * 60,
+    revokeSessionsOnPasswordReset: true,
   },
 
   baseURL: process.env.apiURL || process.env.BETTER_AUTH_URL,

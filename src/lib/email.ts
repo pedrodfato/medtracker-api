@@ -57,3 +57,38 @@ export async function sendDoseReminder(reminder: DueReminder): Promise<void> {
   const { error } = await client.emails.send({ from: FROM, to: reminder.email, subject, html, text });
   if (error) throw new Error(`Resend: ${error.name} - ${error.message}`);
 }
+
+export function buildPasswordResetEmail(name: string, url: string) {
+  const subject = 'Redefinir sua senha do MedTracker';
+  const text = [
+    `Olá, ${name}!`,
+    '',
+    'Recebemos um pedido para redefinir sua senha. Use o link abaixo, que vale por 1 hora:',
+    url,
+    '',
+    'Se não foi você, ignore este e-mail. Sua senha continua a mesma.',
+  ].join('\n');
+
+  const html = `<!doctype html>
+<html lang="pt-BR">
+  <body style="margin:0;padding:24px;background:#f2f3f8;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+    <div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:24px;padding:32px;">
+      <p style="margin:0 0 16px;font-size:16px;">Olá, ${escapeHtml(name)}!</p>
+      <p style="margin:0 0 24px;font-size:16px;">Recebemos um pedido para redefinir sua senha. O link vale por 1 hora.</p>
+      <a href="${escapeHtml(url)}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:999px;font-size:15px;">Criar nova senha</a>
+      <p style="margin:24px 0 0;font-size:12px;color:#9ca3af;">Se não foi você, ignore este e-mail. Sua senha continua a mesma.</p>
+    </div>
+  </body>
+</html>`;
+
+  return { subject, html, text };
+}
+
+export async function sendPasswordResetEmail(to: string, name: string, url: string): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error('RESEND_API_KEY não configurada');
+  client ??= new Resend(apiKey);
+  const { subject, html, text } = buildPasswordResetEmail(name, url);
+  const { error } = await client.emails.send({ from: FROM, to, subject, html, text });
+  if (error) throw new Error(`Resend: ${error.name} - ${error.message}`);
+}

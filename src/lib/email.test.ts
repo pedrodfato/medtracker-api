@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildReminderEmail } from './email.js';
+import { buildPasswordResetEmail, buildReminderEmail } from './email.js';
 import type { DueReminder } from './reminders.js';
 
 const reminder: DueReminder = {
@@ -38,4 +38,13 @@ test('html escapa texto vindo do usuário', () => {
   const email = buildReminderEmail({ ...reminder, medicationName: '<b>X</b>' }, 'https://app.example.com');
   assert.doesNotMatch(email.html, /<b>X<\/b>/);
   assert.match(email.html, /&lt;b&gt;X&lt;\/b&gt;/);
+});
+
+test('buildPasswordResetEmail: inclui o link e escapa o nome', () => {
+  const url = 'https://medtracker-api.vercel.app/api/auth/reset-password/abc?callbackURL=https%3A%2F%2Fmed.clov.com.br%2Fredefinir-senha';
+  const { subject, html, text } = buildPasswordResetEmail('<Ana>', url);
+  assert.match(subject, /senha/i);
+  assert.ok(text.includes(url));
+  assert.ok(html.includes('&lt;Ana&gt;'));
+  assert.ok(!html.includes('<Ana>'));
 });
