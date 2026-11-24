@@ -45,8 +45,11 @@ export async function medicationsRoutes(app: FastifyInstance) {
 
     const userId = session.user.id;
 
-    const durationDays = parseDurationDays(request.body && (request.body as any).durationDays);
-    if (durationDays === null) {
+    // "Todo dia" without a duration is continuous use: no end date.
+    const rawDuration = request.body && (request.body as any).durationDays;
+    const isContinuous = scheduleType === 'fixed' && (rawDuration === undefined || rawDuration === null || rawDuration === '');
+    const durationDays = isContinuous ? null : parseDurationDays(rawDuration);
+    if (!isContinuous && durationDays === null) {
         return reply.status(400).send({ error: 'Informe a duração do tratamento em dias (de 1 a 365).' });
     }
     const diff = offsetDiffMinutes((session.user as any).timezone ?? DEFAULT_TIMEZONE);
@@ -74,7 +77,7 @@ export async function medicationsRoutes(app: FastifyInstance) {
             daysOfWeek,
             graceWindowMinutes,
             startDate: start,
-            endDate: computeEndDate(start, durationDays, diff),
+            endDate: durationDays === null ? null : computeEndDate(start, durationDays, diff),
             userId: userId,
         });
         
@@ -329,15 +332,19 @@ const session = await auth.api.getSession({ headers: request.headers as any });
             return reply.status(404).send({ error: 'Medicamento não encontrado' });
         }
 
-        const { name, dosage, category, scheduleType, daysOfWeek, fixedTime, durationDays: rawDuration } = request.body as any;
+        const { name, dosage, category, scheduleType, daysOfWeek, fixedTime, intervalHours, durationDays: rawDuration } = request.body as any;
 
         const appearance = parseAppearance(request.body);
         if ('error' in appearance) {
             return reply.status(400).send({ error: appearance.error });
         }
 
-        let endDateUpdate: { endDate?: Date; summaryDismissedAt?: null } = {};
-        if (rawDuration !== undefined && rawDuration !== null && rawDuration !== '') {
+        let endDateUpdate: { endDate?: Date | null; summaryDismissedAt?: null } = {};
+        const hasDuration = rawDuration !== undefined && rawDuration !== null && rawDuration !== '';
+        if (!hasDuration && scheduleType === 'fixed') {
+            // Switched to "Todo dia" without a duration: continuous use.
+            endDateUpdate = { endDate: null, summaryDismissedAt: null };
+        } else if (hasDuration) {
             const durationDays = parseDurationDays(rawDuration);
             if (durationDays === null) {
                 return reply.status(400).send({ error: 'Informe a duração do tratamento em dias (de 1 a 365).' });
@@ -362,6 +369,7 @@ const session = await auth.api.getSession({ headers: request.headers as any });
                     scheduleType,
                     daysOfWeek,
                     fixedTime,
+                    intervalHours,
                     ...endDateUpdate,
                 })
                 .where(and(eq(medications.id, medicationId), eq(medications.userId, userId)));
