@@ -1,7 +1,7 @@
 import { Resend } from 'resend';
 import type { DueReminder } from './reminders.js';
 
-const FROM = 'MedTracker <lembretes@clov.com.br>';
+const FROM = 'MedTracker <lembretes@med.clov.com.br>';
 
 function escapeHtml(value: string): string {
   return value
